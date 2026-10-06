@@ -28,7 +28,8 @@ The Sheet is never stored here, because it holds the access codes.
 - `tests/`: checks the server rules against a pretend Sheet. Run them with `node tests/server.test.js`.
 
 ## Updating the live app
-1. Copy `src/Code.gs` and `src/Index.html` into Apps Script, over the old files, then click **Save**.
-2. Go to **Deploy > Manage deployments**, click the pencil, choose **New version**, and click **Deploy**.
+Every change merged into `main` goes live by itself. The **Deploy to Apps Script** action (`.github/workflows/deploy.yml`) runs the tests, sends `src/` to Apps Script, and updates the existing web app, so the link, the codes and the data all stay the same.
 
-The link, the codes and the data all stay the same.
+It needs three repository secrets, set once: `CLASPRC_JSON`, `SCRIPT_ID` and `DEPLOYMENT_ID`. The steps are in `docs/SETUP.md` under "Automatic updates from GitHub". Until they are set, the action only runs the tests.
+
+Don't edit code in the Apps Script editor. The next update from GitHub overwrites it.

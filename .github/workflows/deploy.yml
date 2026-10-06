@@ -1,0 +1,61 @@
+# Sends the code in src/ to Apps Script and updates the live web app,
+# every time main changes. The /exec link stays the same.
+# Needs three repository secrets: CLASPRC_JSON, SCRIPT_ID, DEPLOYMENT_ID (see docs/SETUP.md).
+name: Deploy to Apps Script
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check the server rules
+        run: node tests/server.test.js
+
+      - name: Check the secrets are set
+        id: secrets
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ] || [ -z "$SCRIPT_ID" ] || [ -z "$DEPLOYMENT_ID" ]; then
+            echo "::warning::Not deployed: add CLASPRC_JSON, SCRIPT_ID and DEPLOYMENT_ID under Settings > Secrets and variables > Actions."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push the code to Apps Script
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          printf '{"scriptId":"%s","rootDir":"src"}' "$SCRIPT_ID" > .clasp.json
+          npx --yes @google/clasp@2.4.2 push --force
+
+      - name: Update the live web app
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          npx --yes @google/clasp@2.4.2 deploy -i "$DEPLOYMENT_ID" -d "GitHub ${GITHUB_SHA::7}"
+
+      - name: Clean up the sign-in file
+        if: always()
+        run: rm -f ~/.clasprc.json

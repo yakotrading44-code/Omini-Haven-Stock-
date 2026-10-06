@@ -1,6 +1,6 @@
 # Omni Haven Stock Book: setup and process
 
-This is everything you need, from an empty Google Drive to the daily routine. You don't need GitHub. The app lives entirely inside your Google Sheet and Google account.
+This is everything you need, from an empty Google Drive to the daily routine. The app runs inside your Google Sheet and Google account. GitHub keeps the code and, once set up, sends updates to the app by itself.
 
 ## Part 1: One-time setup (Nana, on a laptop, about 15 minutes)
 
@@ -80,8 +80,30 @@ How to prevent disputes:
 ## Part 5: Start of each month
 To start fresh, make a new copy of the Sheet with the new opening stock, or ask Claude to prepare one from the Multipro invoice. Then repeat Part 1 steps 2 to 5.
 
-## Changing the app later
-Paste in the new code and click **Save**. Then go to **Deploy > Manage deployments**, click the pencil, set **Version: New version**, and click **Deploy**. The link stays the same.
+## Changing the app later: automatic updates from GitHub
+After this one-time setup, every change merged on GitHub goes live by itself. The link, the codes and the data stay the same. Do it on a laptop, after Part 1 is done.
+
+1. **Allow outside updates.** Go to script.google.com/home/usersettings, signed in with the Omni Haven account, and switch **Google Apps Script API** to **On**.
+2. **Copy the Script ID.** In Apps Script, open **Project Settings** (the gear on the left). Copy the **Script ID**.
+3. **Copy the Deployment ID.** Click **Deploy > Manage deployments**, select the web app, and copy its **Deployment ID** (a long code, not the /exec link).
+4. **Sign in once from the laptop.**
+   - Install Node.js (the LTS version) from nodejs.org.
+   - Open Terminal (Mac) or Command Prompt (Windows) and type `npx @google/clasp@2.4.2 login`, then press Enter.
+   - A browser opens. Pick the Omni Haven account and click **Allow**.
+   - This creates a file called `.clasprc.json` in your home folder (`C:\Users\<your name>` on Windows, your user folder on a Mac). Open it with Notepad or TextEdit and copy everything in it.
+   - Treat this file like a password. It lets the updater into your Apps Script. Don't send it to anyone, Claude included.
+5. **Give GitHub the three values.** In the repository on GitHub, open **Settings > Secrets and variables > Actions** and click **New repository secret** three times:
+   - `CLASPRC_JSON`: everything you copied from `.clasprc.json`
+   - `SCRIPT_ID`: the Script ID
+   - `DEPLOYMENT_ID`: the Deployment ID
+6. **Test it.** Open the **Actions** tab, click **Deploy to Apps Script**, then **Run workflow**. A green tick means the live app is up to date.
+
+From then on:
+- Don't edit code in the Apps Script editor. The next update from GitHub overwrites it.
+- If a run turns red, open it to see which step failed. A failed test stops the update, so the live app keeps running the last good version.
+- If you change your Google password or remove access, repeat step 4 and replace `CLASPRC_JSON`.
+
+To update by hand instead: paste in the new code and click **Save**. Then go to **Deploy > Manage deployments**, click the pencil, set **Version: New version**, and click **Deploy**.
 
 ## If entries don't show up in the Sheet
 Every saved entry goes to the **Entries** tab of the Sheet you opened Apps Script from. Nana's page shows that Sheet's name and a link at the bottom.

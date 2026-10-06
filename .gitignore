@@ -3,3 +3,4 @@
 *.csv
 .clasprc.json
 node_modules/
+.clasp.json
