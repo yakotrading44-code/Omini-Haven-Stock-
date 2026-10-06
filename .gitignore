@@ -1,0 +1,5 @@
+# The Google Sheet holds everyone's access codes and the stock data. Never commit it.
+*.xlsx
+*.csv
+.clasprc.json
+node_modules/

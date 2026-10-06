@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html><head><base target="_top"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Omni Haven Stock Book</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Public+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one phone-width column; a "who is using this" bar on top, then the person's own book: summary strip, actions, tables. */
+:root{
+  --bg:#f3f4f1; --surface:#ffffff; --ink:#1b2430; --muted:#5d6670; --line:#d9ddd6;
+  --accent:#b3261e; --accent-ink:#ffffff; --kraft:#c99a5b; --kraft-soft:#f4e7d3;
+  --good:#1f7a4d; --good-soft:#dcefe4; --warn:#9a6200; --warn-soft:#fbecc9; --bad:#b3261e; --bad-soft:#f8dcd9;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#14181d; --surface:#1d232a; --ink:#e8eaec; --muted:#9aa3ad; --line:#323a43;
+  --accent:#ef5b4f; --accent-ink:#1a0d0b; --kraft:#d6ab72; --kraft-soft:#3a2f22;
+  --good:#5cc592; --good-soft:#1c3a2c; --warn:#e6b14f; --warn-soft:#3d321a; --bad:#ff7b70; --bad-soft:#45221f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#14181d; --surface:#1d232a; --ink:#e8eaec; --muted:#9aa3ad; --line:#323a43;
+  --accent:#ef5b4f; --accent-ink:#1a0d0b; --kraft:#d6ab72; --kraft-soft:#3a2f22;
+  --good:#5cc592; --good-soft:#1c3a2c; --warn:#e6b14f; --warn-soft:#3d321a; --bad:#ff7b70; --bad-soft:#45221f; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--body);font-variant-numeric:tabular-nums}
+.wrap{max-width:860px;margin:0 auto;padding-inline:16px;padding-block:max(12px,env(safe-area-inset-top)) 64px;display:grid;gap:18px}
+h1,h2,h3{font-family:var(--display);letter-spacing:.01em;margin:0;text-wrap:balance}
+h1{font-size:30px;line-height:1}
+h2{font-size:22px;text-transform:uppercase;letter-spacing:.04em}
+h3{font-size:18px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+header.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding-block:6px;border-bottom:3px solid var(--kraft)}
+.brand{display:grid;gap:2px}
+.brand .eyebrow{font:600 12px/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.who{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:7px 13px;font:600 14px var(--body);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button{font:inherit}
+.btn{border:0;border-radius:var(--r);padding:12px 14px;font-weight:700;cursor:pointer;background:var(--accent);color:var(--accent-ink);text-align:left;display:grid;gap:2px}
+.btn small{font-weight:500;opacity:.85}
+.btn.alt{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+.btn.slim{padding:8px 12px;text-align:center}
+.btn:focus-visible,.chip:focus-visible,input:focus-visible,select:focus-visible,.link:focus-visible{outline:3px solid var(--kraft);outline-offset:2px}
+.actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.stat{background:var(--surface);padding:12px 14px;display:grid;gap:2px}
+.stat .k{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.stat .v{font:700 32px/1 var(--display)}
+.stat .s{font-size:12px;color:var(--muted)}
+.stat.hl{background:var(--kraft-soft)}
+.stat.bad .v{color:var(--bad)}
+section{display:grid;gap:10px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:12px}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:420px}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--bg)}
+tr:last-child td{border-bottom:0}
+tfoot td{font-weight:700;background:var(--bg)}
+.pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
+.pill.good{background:var(--good-soft);color:var(--good)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.plain{background:var(--bg);color:var(--muted)}
+.note{border-left:4px solid var(--warn);background:var(--warn-soft);padding:10px 12px;border-radius:6px}
+.note.bad{border-color:var(--bad);background:var(--bad-soft)}
+.list{display:grid;gap:8px}
+.item{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px}
+.item .main{min-width:0;display:grid;gap:2px}
+.item .row{display:flex;gap:6px;flex-wrap:wrap}
+.link{background:none;border:0;color:var(--accent);font-weight:600;cursor:pointer;padding:4px 2px}
+/* forms */
+.sheet{position:fixed;inset:0;background:rgba(10,14,18,.45);display:grid;align-items:end;justify-items:center;z-index:10}
+.sheet .card{background:var(--surface);color:var(--ink);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:16px 16px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));display:grid;gap:12px}
+@media (min-width:700px){.sheet{align-items:center}.sheet .card{border-radius:16px}}
+label{display:grid;gap:4px;font-weight:600;font-size:14px}
+input,select{font:inherit;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%;min-width:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lines{display:grid;gap:8px}
+.line{display:grid;grid-template-columns:1fr 96px 36px;gap:8px;align-items:end}
+.x{background:none;border:1px solid var(--line);border-radius:8px;color:var(--muted);height:42px;cursor:pointer}
+.formbar{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.err{color:var(--bad);font-weight:600}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:600;z-index:20;max-width:calc(100% - 32px)}
+.empty{padding:18px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:var(--r)}
+.weekbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.weekbar input{width:auto}
+@media (prefers-reduced-motion:no-preference){.sheet .card{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
+</style>
+</head><body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span class="eyebrow">Omni Haven</span><h1>Stock Book</h1></div>
+    <div class="who" id="who" role="group" aria-label="Who is using this"></div>
+  </header>
+  <div class="muted small" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between"><span id="status">Connecting to the shared book…</span><button class="link" id="changeCode" type="button">Change code</button></div>
+  <main id="main" class="wrap" style="padding:0"></main>
+</div>
+<div id="sheet" class="sheet" hidden><div class="card" id="sheetCard" role="dialog" aria-modal="true"></div></div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+(function(){
+const DEFAULT_CONFIG={
+  products:["OC", "SPO", "BFO", "HMO", "BFC", "MIX", "SPC", "HMC", "CF 45G", "CP 25G", "CF 300G", "ATSOMO", "HERO PACK", "CF 450G"],
+  names:{"OC": "Onion Chicken 70g ×44", "SPO": "Onion Chicken 120g ×44", "BFO": "Belleful Onion Chicken 280g ×18", "HMO": "Hungryman Onion Chicken 180g ×26", "BFC": "Belleful Chicken 280g ×18"},
+  startDate:"2026-09-30",
+  agents:[{name:"Peter Boakye",active:true},{name:"Deborah",active:true},{name:"Sarah Ofori",active:false}],
+  warehouse:"Frank"
+};
+const KIND={issue:"Cartons given to agent",receive:"Received from supplier",ret:"Returned to warehouse",count:"Warehouse count",
+  raise:"Order raised in Omni",credit:"Given on credit",payment:"Customer paid"};
+let view="book",entryType="all",allEntries=[],db=true,accessCode=null,needCode=false,me=null,who=null,bookInfo=null,cfg=DEFAULT_CONFIG,entries=[],role=null,canWrite=true,loaded=false,weekOf=mondayOf(today());
+const $=s=>document.querySelector(s);
+const main=$("#main");
+
+function today(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function mondayOf(iso){const d=new Date(iso+"T12:00:00");const wd=(d.getDay()+6)%7;d.setDate(d.getDate()-wd);return d.toISOString().slice(0,10)}
+function addDays(iso,n){const d=new Date(iso+"T12:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)}
+function daysSince(iso){return Math.round((new Date(today()+"T12:00:00")-new Date(iso+"T12:00:00"))/864e5)}
+function fmtDate(iso){if(!iso)return"";const d=new Date(iso+"T12:00:00");return d.toLocaleDateString(undefined,{day:"numeric",month:"short"})}
+function n(v){return Number(v)||0}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function cedi(v){return "GH₵ "+n(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
+function toast(msg){const t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600)}
+function store(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
+
+const agentNames=()=>cfg.agents.map(a=>a.name);
+const activeAgents=()=>cfg.agents.filter(a=>a.active).map(a=>a.name);
+const sum=(f)=>entries.reduce((t,e)=>t+(f(e)?n(e.cartons):0),0);
+
+/* ---------- calculations ---------- */
+function agentBook(a,upto){
+  const E=entries.filter(e=>e.agent===a&&(!upto||e.date<=upto));
+  const by=k=>E.filter(e=>e.kind===k);
+  const tot=k=>by(k).reduce((t,e)=>t+n(e.cartons),0);
+  const isCash=e=>e.kind==="payment"&&e.status==="cash";
+  const taken=tot("issue"),raised=tot("raise"),returned=tot("ret"),credit=tot("credit"),paid=by("payment").filter(e=>!isCash(e)).reduce((t,e)=>t+n(e.cartons),0);
+  const withMe=taken-raised-returned, onCredit=credit-paid, inHand=withMe-onCredit;
+  const products={};
+  for(const p of cfg.products)products[p]={taken:0,raised:0,returned:0,credit:0};
+  for(const e of E){const P=products[e.product]||(products[e.product]={taken:0,raised:0,returned:0,credit:0});
+    if(e.kind==="issue")P.taken+=n(e.cartons);if(e.kind==="raise")P.raised+=n(e.cartons);if(e.kind==="ret")P.returned+=n(e.cartons);
+    if(e.kind==="credit")P.credit+=n(e.cartons);if(e.kind==="payment"&&!isCash(e))P.credit-=n(e.cartons);
+    // cartons physically with the agent: taken, minus returned, given on credit, sold for cash, or raised without a customer (old entries)
+    P.hand=(P.hand||0)+(e.kind==="issue"?n(e.cartons):(e.kind==="ret"||e.kind==="credit"||isCash(e)||(e.kind==="raise"&&!e.customer))?-n(e.cartons):0)}
+  // customers: FIFO on cartons per customer
+  const cust={};
+  for(const e of E.filter(e=>e.kind==="credit"||(e.kind==="payment"&&!isCash(e)))){
+    const c=cust[e.customer]||(cust[e.customer]={name:e.customer,credits:[],paid:0,paidAmt:0,creditAmt:0,lastPay:null});
+    if(e.kind==="credit"){c.credits.push(e);c.creditAmt+=n(e.amount)}else{c.paid+=n(e.cartons);c.paidAmt+=n(e.amount);if(!c.lastPay||e.date>c.lastPay)c.lastPay=e.date}}
+  const customers=Object.values(cust).map(c=>{
+    c.credits.sort((x,y)=>x.date<y.date?-1:1);let left=c.paid,oldest=null,owed=0;
+    for(const cr of c.credits){const rem=Math.max(0,n(cr.cartons)-left);left=Math.max(0,left-n(cr.cartons));if(rem>0){owed+=rem;if(!oldest)oldest=cr.date}}
+    const products=[...new Set(c.credits.map(x=>x.product))];
+    return {name:c.name,owed,oldest,days:oldest?daysSince(oldest):0,amt:c.creditAmt-c.paidAmt,lastPay:c.lastPay,products}
+  }).sort((x,y)=>y.days-x.days||y.owed-x.owed);
+  // per customer and product: what is still owed, and what has been paid but not yet raised in Omni
+  const cp={},key=(c,p)=>String(c||"").toLowerCase()+"|"+p;
+  for(const e of E){if(!e.customer||!["credit","payment","raise"].includes(e.kind))continue;
+    const k=key(e.customer,e.product),o=cp[k]||(cp[k]={customer:e.customer,product:e.product,owed:0,paid:0,raised:0});
+    if(e.kind==="credit")o.owed+=n(e.cartons);
+    if(e.kind==="payment"){o.paid+=n(e.cartons);if(!isCash(e))o.owed-=n(e.cartons)}
+    if(e.kind==="raise")o.raised+=n(e.cartons)}
+  const toRaise=Object.values(cp).map(o=>({customer:o.customer,product:o.product,left:o.paid-o.raised})).filter(o=>o.left>0)
+    .sort((x,y)=>x.customer.localeCompare(y.customer)||cfg.products.indexOf(x.product)-cfg.products.indexOf(y.product));
+  const owedFor=(c,p)=>{const o=cp[key(c,p)];return o?o.owed:0};
+  const owing=Object.values(cp).filter(o=>o.owed>0).sort((x,y)=>x.customer.localeCompare(y.customer)||cfg.products.indexOf(x.product)-cfg.products.indexOf(y.product));
+  const handFor=p=>(products[p]&&products[p].hand)||0;
+  const pending=by("issue").filter(e=>e.status==="pending");
+  const disputed=by("issue").filter(e=>e.status==="disputed");
+  // paid but not raised: sold, so neither on credit nor in hand
+  const toRaiseTotal=toRaise.reduce((t,o)=>t+o.left,0);
+  for(const o of toRaise)if(products[o.product])products[o.product].paidNR=(products[o.product].paidNR||0)+o.left;
+  return {taken,raised,returned,credit,paid,withMe,onCredit,inHand:inHand-toRaiseTotal,products,customers,pending,disputed,toRaise,owedFor,toRaiseTotal,owing,handFor}
+}
+function lastCount(p,upto){
+  let c=null;for(const e of entries)if(e.kind==="count"&&e.product===p&&(!upto||e.date<=upto)&&(!c||e.date>c.date||(e.date===c.date&&(e.createdAt||"")>(c.createdAt||""))))c=e;return c
+}
+function notRaised(p,upto){ // all agents, all-time up to date
+  return sum(e=>e.product===p&&e.date<=upto&&e.kind==="issue")-sum(e=>e.product===p&&e.date<=upto&&(e.kind==="raise"||e.kind==="ret"))
+}
+function warehouseRow(p){
+  const c=lastCount(p);
+  const after=k=>sum(e=>e.product===p&&e.kind===k&&(!c||e.date>c.date));
+  const recv=after("receive"),iss=after("issue"),ret=after("ret");
+  const avail=c?n(c.cartons)+recv-iss+ret:null;
+  const nr=notRaised(p,"9999-12-31");
+  const unexplained=(c&&c.omni!==""&&c.omni!=null)?n(c.omni)-n(c.cartons)-notRaised(p,c.date):null;
+  return {p,count:c,recv,iss,ret,avail,nr,systemShould:avail==null?null:avail+nr,unexplained}
+}
+
+/* ---------- rendering ---------- */
+function isMgr(){return !!who&&who.role==="manager"}
+function myRole(){ // the page this person sees; only Nana can switch pages
+  if(!who)return null;
+  if(who.role==="manager"){const r=store("ohRole");return [...activeAgents(),cfg.warehouse||"Frank"].includes(r)?r:"Nana (manager)"}
+  if(who.role==="warehouse")return cfg.warehouse||who.name;
+  return who.name;
+}
+function renderWho(){
+  if(!who||needCode){$("#who").innerHTML="";return}
+  if(!isMgr()){$("#who").innerHTML=`<span class="chip" aria-pressed="true">${esc(who.name.split(" ")[0])}</span>`;return}
+  const opts=[...activeAgents(),cfg.warehouse||"Frank","Nana (manager)"];
+  $("#who").innerHTML=opts.map(o=>`<button class="chip" aria-pressed="${o===role}" data-role="${esc(o)}">${esc(o.split(" ")[0])}</button>`).join("");
+}
+function render(){
+  entries=allEntries.filter(e=>!cfg.startDate||String(e.date)>=cfg.startDate);
+  renderWho();
+  if(needCode){main.innerHTML=`<section class="panel"><h2>Enter your code</h2><p>Everyone has their own code from Nana. It opens your book only.</p><form id="codeForm" class="lines"><label>Access code<input id="codeIn" autocomplete="off"></label><div class="err" id="codeErr"></div><div class="formbar"><button class="btn slim">Open the book</button></div></form></section>`;
+    $("#codeForm").onsubmit=e=>{e.preventDefault();accessCode=$("#codeIn").value.trim();store("ohCode",accessCode);load(true)};return}
+  if(!loaded||!role){main.innerHTML=`<div class="empty">Loading the shared book…</div>`;return}
+  if(view==="entries")renderEntries();
+  else if(role==="Nana (manager)")renderManager();
+  else if(role===(cfg.warehouse||"Frank"))renderFrank();
+  else renderAgent(role);
+  main.insertAdjacentHTML("afterbegin",`<div class="who" role="tablist" aria-label="Pages"><button class="chip" role="tab" aria-pressed="${view!=="entries"}" data-view="book">${role==="Nana (manager)"?"Overview":role===(cfg.warehouse||"Frank")?"Warehouse":"My book"}</button><button class="chip" role="tab" aria-pressed="${view==="entries"}" data-view="entries">Entries</button></div>`);
+}
+const ENTRY_TYPES={all:"Everything",issue:"Cartons given out",ret:"Returns",receive:"Received from supplier",count:"Warehouse counts",credit:"Credit",payment:"Payments",raise:"Orders raised"};
+function renderEntries(){
+  const mine=role==="Nana (manager)"?()=>true:role===(cfg.warehouse||"Frank")?e=>["issue","receive","ret","count"].includes(e.kind):e=>e.agent===role;
+  const types=Object.keys(ENTRY_TYPES).filter(k=>k==="all"||entries.some(e=>mine(e)&&e.kind===k));
+  if(!types.includes(entryType))entryType="all";
+  main.innerHTML=`<section><div class="weekbar"><h2>Entries</h2><select id="entryType" aria-label="Show">${types.map(k=>`<option value="${k}"${k===entryType?" selected":""}>${ENTRY_TYPES[k]}</option>`).join("")}</select></div></section>`+
+    recentHtml(e=>mine(e)&&(entryType==="all"||e.kind===entryType),"Newest first",400);
+}
+
+function stat(k,v,s,cls=""){return `<div class="stat ${cls}"><span class="k">${k}</span><span class="v">${v}</span>${s?`<span class="s">${s}</span>`:""}</div>`}
+function agePill(d){return d>30?`<span class="pill bad">${d} days</span>`:d>14?`<span class="pill warn">${d} days</span>`:`<span class="pill plain">${d} days</span>`}
+
+function renderAgent(a){
+  const b=agentBook(a);
+  const first=a.split(" ")[0];
+  let h=`<section><h2>${esc(first)}'s book</h2>
+  <div class="strip">
+    ${stat("Taken from warehouse",b.taken,"all cartons Frank gave you")}
+    ${stat("Raised in Omni",b.raised,"orders you've raised")}
+    ${stat("Returned",b.returned,"cartons brought back")}
+    ${stat("Still with you",b.withMe,"not yet raised","hl")}
+  </div>
+  <div class="strip">
+    ${stat("Out on credit",b.onCredit,b.customers.filter(c=>c.owed>0).length+" customers owe you")}
+    ${stat("Unsold in hand",b.inHand,"should be in your van or store",b.inHand<0?"bad":"")}
+    ${stat("Paid, not raised",b.toRaiseTotal,"raise these in Omni",b.toRaiseTotal?"hl":"")}
+  </div>
+  ${b.toRaiseTotal?`<div class="note">Customers have paid for ${b.toRaiseTotal} carton${b.toRaiseTotal>1?"s":""} you haven't raised yet: ${b.toRaise.map(o=>`${esc(o.customer)} ${o.left} × ${esc(o.product)}`).join(", ")}. Raise them in Omni, then tap <strong>Raised order in Omni</strong>.</div>`:""}
+  ${b.inHand<0?`<div class="note bad">Your credit records add up to ${-b.inHand} more cartons than you are holding. Check for a credit you already raised, or an order you raised but didn't record here.</div>`:""}
+  ${b.pending.length?`<div class="note">Frank has recorded ${b.pending.length} delivery${b.pending.length>1?"ies":"y"} to you. Please confirm ${b.pending.length>1?"them":"it"} below.</div>`:""}
+  </section>`;
+  h+=`<section><h2>Record</h2><div class="actions">
+    <button class="btn" data-form="credit">Gave cartons on credit<small>customer took cartons, will pay later</small></button>
+    <button class="btn" data-form="payment">Customer paid<small>pick from customers who owe you</small></button>
+    <button class="btn alt" data-form="raise">Raised order in Omni<small>only for cartons already paid for</small></button>
+  </div></section>`;
+  if(b.pending.length||b.disputed.length){
+    h+=`<section><h3>Cartons Frank gave you</h3><div class="list">${[...b.pending,...b.disputed].map(e=>`
+      <div class="item"><div class="main"><strong>${n(e.cartons)} × ${esc(e.product)}</strong><span class="muted small">${fmtDate(e.date)}${e.note?" · "+esc(e.note):""}</span></div>
+      <div class="row">${e.status==="disputed"?`<span class="pill bad">You said ${e.disputeCartons!=null?n(e.disputeCartons):"it's wrong"}. Waiting for Frank or Nana</span>`:
+        `<button class="btn slim" data-act="confirm" data-id="${e.id}">That's right</button><button class="btn slim alt" data-act="dispute" data-id="${e.id}">That's wrong</button>`}</div></div>`).join("")}</div></section>`;
+  }
+  const owing=b.customers.filter(c=>c.owed>0);
+  h+=`<section><h3>Customers who owe you</h3>${owing.length?`<div class="tbl"><table><thead><tr><th>Customer</th><th>Cartons owed</th><th>Amount owed</th><th>Oldest</th></tr></thead><tbody>
+    ${owing.map(c=>`<tr><td>${esc(c.name)}<div class="muted small">${esc(c.products.join(", "))}</div></td><td>${c.owed}</td><td>${c.amt>0?cedi(c.amt):"—"}</td><td>${agePill(c.days)}</td></tr>`).join("")}
+    </tbody></table></div>`:`<div class="empty">No credit recorded yet. When a customer takes cartons on credit, tap <strong>Gave cartons on credit</strong>. If customers already owe you, record each of them once so your book balances.</div>`}</section>`;
+  h+=`<section><h3>By product</h3><div class="tbl"><table><thead><tr><th>Product</th><th>Taken</th><th>Raised</th><th>Returned</th><th>On credit</th><th>In hand</th></tr></thead><tbody>
+    ${Object.entries(b.products).filter(([,P])=>P.taken||P.raised||P.returned||P.credit).map(([p,P])=>{const ih=P.taken-P.raised-P.returned-P.credit-(P.paidNR||0);
+      return `<tr><td>${esc(p)}</td><td>${P.taken}</td><td>${P.raised}</td><td>${P.returned}</td><td>${P.credit}</td><td>${ih<0?`<span class="pill bad">${ih}</span>`:ih}</td></tr>`}).join("")||`<tr><td colspan="6" class="muted">Nothing yet</td></tr>`}
+    </tbody><tfoot><tr><td>Total</td><td>${b.taken}</td><td>${b.raised}</td><td>${b.returned}</td><td>${b.onCredit}</td><td>${b.inHand}</td></tr></tfoot></table></div></section>`;
+  main.innerHTML=h;
+}
+
+function disputesHtml(asMgr){
+  const list=entries.filter(e=>e.kind==="issue"&&e.status==="disputed");
+  if(!list.length)return "";
+  return `<section><h3>Disputed deliveries</h3><div class="list">${list.map(e=>{const a=esc(e.agent.split(" ")[0]),dc=e.disputeCartons;
+    return `<div class="item"><div class="main"><strong>${a}, ${esc(e.product)} on ${fmtDate(e.date)}</strong>
+      <span>Frank recorded <strong>${n(e.cartons)}</strong>. ${a} says <strong>${dc!=null?n(dc):"it's wrong"}</strong>.</span>${e.disputeNote?`<span class="muted small">"${esc(e.disputeNote)}"</span>`:""}</div>
+      <div class="row">${asMgr?`<button class="btn slim alt" data-act="settle" data-id="${e.id}" data-n="${n(e.cartons)}">Keep ${n(e.cartons)}</button>${dc!=null&&dc!==e.cartons?`<button class="btn slim alt" data-act="settle" data-id="${e.id}" data-n="${n(dc)}">Use ${n(dc)}</button>`:""}<button class="btn slim alt" data-act="settle" data-id="${e.id}">Other number</button>`
+        :dc!=null?`<button class="btn slim" data-act="settle" data-id="${e.id}" data-n="${n(dc)}">${a} is right, make it ${n(dc)}</button>`:""}</div></div>`}).join("")}</div>
+    <p class="muted small">${asMgr?"Check the waybill, the agent's van and the warehouse count, then decide. Everyone is told the result.":"If you agree with the agent, accept their number. If not, leave it and Nana will decide."}</p></section>`;
+}
+
+function renderFrank(){
+  const allRows=cfg.products.map(warehouseRow),rows=allRows.filter(r=>r.count||r.nr||r.iss||r.recv||r.ret),idle=allRows.filter(r=>!rows.includes(r)).map(r=>r.p);
+  const uncounted=rows.filter(r=>!r.count).length;
+  const idleNote=idle.length?`<p class="muted small">No stock recorded for ${esc(idle.join(", "))}. They appear here once cartons come in or are counted.</p>`:"";
+  const weekEnd=addDays(weekOf,6);
+  let h=`<section><h2>Warehouse</h2><div class="actions">
+    <button class="btn" data-form="issue">Give cartons to an agent<small>several products at once</small></button>
+    <button class="btn alt" data-form="ret">Agent returned cartons<small>unsold cartons back in</small></button>
+    <button class="btn alt" data-form="receive">Received from supplier<small>new stock in</small></button>
+    <button class="btn alt" data-form="count">Count the warehouse<small>and note what Omni shows</small></button>
+  </div>
+  ${uncounted?`<div class="note">${!rows.length?"Stock available needs a starting point. Count each product once with <strong>Count the warehouse</strong>; after that, every carton in and out keeps it up to date.":uncounted+" products have never been counted, so their stock available is unknown."}</div>`:""}
+  </section>`;
+  h+=`<section><h3>Stock available now</h3><div class="tbl"><table><thead><tr><th>Product</th><th>Last count</th><th>In since</th><th>Out since</th><th>Available</th><th>Agents haven't raised</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${esc(r.p)}<div class="muted small">${esc((cfg.names||{})[r.p]||"")}</div></td><td>${r.count?`${n(r.count.cartons)} <span class="muted small">${fmtDate(r.count.date)}</span>`:`<span class="pill warn">Not counted</span>`}</td>
+      <td>${r.count?r.recv+r.ret:"—"}</td><td>${r.count?r.iss:"—"}</td><td><strong>${r.avail==null?"—":r.avail<0?`<span class="pill bad">${r.avail}</span>`:r.avail}</strong></td><td>${r.nr}</td></tr>`).join("")}
+    </tbody></table></div>${idleNote}<p class="muted small">Counts are treated as taken at the end of the day. "Agents haven't raised" is why the Omni system shows more than the warehouse.</p></section>`;
+  h+=disputesHtml(false);
+  h+=weekTable("Cartons given out",weekEnd);
+  main.innerHTML=h;
+}
+
+function weekTable(title,weekEnd){
+  const ag=agentNames().filter(a=>entries.some(e=>e.agent===a));
+  const inWk=e=>e.date>=weekOf&&e.date<=weekEnd;
+  return `<section><div class="weekbar"><h3>${title}, week of</h3><input type="date" id="weekPick" value="${weekOf}" aria-label="Week starting"></div>
+  <div class="tbl"><table><thead><tr><th>Agent</th><th>Taken this week</th><th>Raised this week</th><th>Returned this week</th><th>Not raised at week end</th></tr></thead><tbody>
+  ${ag.map(a=>{const b=agentBook(a,weekEnd);return `<tr><td>${esc(a)}</td><td>${sum(e=>e.agent===a&&e.kind==="issue"&&inWk(e))}</td><td>${sum(e=>e.agent===a&&e.kind==="raise"&&inWk(e))}</td><td>${sum(e=>e.agent===a&&e.kind==="ret"&&inWk(e))}</td><td>${b.withMe}</td></tr>`}).join("")}
+  </tbody></table></div></section>`;
+}
+
+function renderManager(){
+  const allRows=cfg.products.map(warehouseRow),rows=allRows.filter(r=>r.count||r.nr||r.iss||r.recv||r.ret),idle=allRows.filter(r=>!rows.includes(r)).map(r=>r.p);
+  const ag=agentNames().filter(a=>entries.some(e=>e.agent===a));
+  const books=ag.map(a=>[a,agentBook(a)]);
+  const disputes=entries.filter(e=>e.kind==="issue"&&e.status==="disputed");
+  const unexpl=rows.filter(r=>r.unexplained!=null&&r.unexplained!==0);
+  let h=`<section><h2>Overview</h2><div class="strip">
+    ${stat("Cartons not raised",books.reduce((t,[,b])=>t+b.withMe,0),"the gap between Omni and the warehouse","hl")}
+    ${stat("Out on credit",books.reduce((t,[,b])=>t+b.onCredit,0),"cartons customers owe")}
+    ${stat("Unsold with agents",books.reduce((t,[,b])=>t+b.inHand,0),"not raised, not on credit")}
+  </div>
+  ${disputes.length?`<div class="note bad">${disputes.length} deliver${disputes.length>1?"ies are":"y is"} disputed. Settle ${disputes.length>1?"them":"it"} below.</div>`:""}
+  ${unexpl.length?`<div class="note bad">At the last count, ${unexpl.map(r=>`${esc(r.p)} is off by ${r.unexplained}`).join(", ")} after allowing for cartons not raised. Those cartons are missing or an entry was skipped.</div>`:""}
+  </section>`;
+  h+=disputesHtml(true);
+  h+=`<section><h3>Each agent</h3><div class="tbl"><table><thead><tr><th>Agent</th><th>Taken</th><th>Raised</th><th>Returned</th><th>Not raised</th><th>On credit</th><th>Paid, not raised</th><th>Unsold</th><th>Oldest credit</th></tr></thead><tbody>
+    ${books.map(([a,b])=>{const old=b.customers.find(c=>c.owed>0);return `<tr><td>${esc(a)}${cfg.agents.find(x=>x.name===a&&!x.active)?` <span class="pill plain">former</span>`:""}</td><td>${b.taken}</td><td>${b.raised}</td><td>${b.returned}</td><td><strong>${b.withMe}</strong></td><td>${b.onCredit}</td><td>${b.toRaiseTotal?`<span class="pill warn">${b.toRaiseTotal}</span>`:0}</td><td>${b.inHand<0?`<span class="pill bad">${b.inHand}</span>`:b.inHand}</td><td>${old?agePill(old.days):"—"}</td></tr>`}).join("")}
+    </tbody></table></div></section>`;
+  h+=`<section><h3>Warehouse vs Omni system</h3><div class="tbl"><table><thead><tr><th>Product</th><th>Warehouse has</th><th>Not raised</th><th>Omni should show</th><th>Last check</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${esc(r.p)}<div class="muted small">${esc((cfg.names||{})[r.p]||"")}</div></td><td>${r.avail==null?`<span class="pill warn">Not counted</span>`:r.avail}</td><td>${r.nr}</td><td>${r.systemShould==null?"—":r.systemShould}</td>
+      <td>${r.unexplained==null?"—":r.unexplained===0?`<span class="pill good">Matches</span>`:`<span class="pill bad">Off by ${r.unexplained}</span>`}</td></tr>`).join("")}
+    </tbody></table></div><p class="muted small">"Last check" compares Frank's count with the Omni figure he noted that day, after allowing for cartons not raised. It should read Matches.</p></section>`;
+  h+=weekTable("Weekly movement",addDays(weekOf,6));
+  h+=`<section><h3>Products and agents</h3><div class="actions"><button class="btn alt" data-form="product">Add a product</button><button class="btn alt" data-form="agent">Add or retire an agent</button></div></section>`;
+  if(bookInfo)h+=`<p class="muted small">Every entry is saved to the Google Sheet <a href="${esc(bookInfo.url)}" target="_blank" rel="noopener">${esc(bookInfo.name)}</a>, on the Entries tab. People's codes are on its Codes tab.</p>`;
+  main.innerHTML=h;
+}
+
+function describe(e){
+  const who=e.agent?esc(e.agent.split(" ")[0]):"";
+  switch(e.kind){
+    case"issue":return `${who} took ${n(e.cartons)} × ${esc(e.product)}${e.resolution?` <span class="pill plain">${esc(e.resolution)}</span>`:""}`;
+    case"receive":return `Received ${n(e.cartons)} × ${esc(e.product)}${e.note?" ("+esc(e.note)+")":""}`;
+    case"ret":return `${who} returned ${n(e.cartons)} × ${esc(e.product)}`;
+    case"count":return `Counted ${n(e.cartons)} × ${esc(e.product)}${e.omni!==""&&e.omni!=null?`, Omni showed ${n(e.omni)}`:""}`;
+    case"raise":return `${who} raised ${n(e.cartons)} × ${esc(e.product)}${e.customer?" for "+esc(e.customer):""}${e.orderNo?" · order "+esc(e.orderNo):""}`;
+    case"credit":return `${who} gave ${esc(e.customer)} ${n(e.cartons)} × ${esc(e.product)} on credit${n(e.amount)?" · "+cedi(e.amount):""}`;
+    case"payment":return `${esc(e.customer)} paid ${who} for ${n(e.cartons)} × ${esc(e.product)}${e.status==="cash"?" (cash sale)":""}${n(e.amount)?" · "+cedi(e.amount):""}`;
+  }
+  return esc(e.kind)
+}
+function recentHtml(filter,title,limit=15){
+  const list=entries.filter(filter).sort((x,y)=>(y.date+(y.createdAt||""))>(x.date+(x.createdAt||""))?1:-1).slice(0,limit);
+  return `<section><h3>${title}</h3>${list.length?`<div class="list">${list.map(e=>`<div class="item"><div class="main"><span>${describe(e)}</span><span class="muted small">${fmtDate(e.date)}${e.by?" · entered by "+esc(e.by.split(" ")[0]):""}${e.note&&e.kind!=="receive"?" · "+esc(e.note):""}</span></div>
+    ${(canWrite&&!String(e.id).startsWith("tmp-")&&(isMgr()||(who&&e.by===who.name)))?`<button class="link" data-act="del" data-id="${e.id}">Delete</button>`:""}</div>`).join("")}</div>`:`<div class="empty">Nothing recorded yet.</div>`}</section>`;
+}
+
+/* ---------- forms ---------- */
+function opt(list,sel,lab){return list.map(x=>`<option value="${esc(x)}"${x===sel?" selected":""}>${esc(lab?lab(x):x)}</option>`).join("")}
+function pname(p){const nm=(cfg.names||{})[p];return nm?p+" · "+nm:p}
+function customersOf(a){return [...new Set(entries.filter(e=>e.agent===a&&e.customer).map(e=>e.customer))].sort()}
+function openForm(kind){
+  if(!canWrite){toast("You can view this book but not add to it. Ask Nana to give you edit access.");return}
+  const c=$("#sheetCard");const agentSel=`<label>Agent<select id="f_agent">${opt(activeAgents())}</select></label>`;
+  const prod=(id="f_product")=>`<label>Product<select id="${id}">${opt(cfg.products,null,pname)}</select></label>`;
+  const date=`<label>Date<input type="date" id="f_date" value="${today()}" max="${today()}"></label>`;
+  const qty=`<label>Cartons<input type="number" id="f_cartons" inputmode="numeric" min="1" step="1"></label>`;
+  let body="",titleTxt=KIND[kind]||"";
+  if(kind==="issue"){titleTxt="Give cartons to an agent";
+    body=`<div class="grid2">${agentSel}${date}</div><div class="lines" id="lines"></div><button type="button" class="link" id="addLine">+ Add another product</button><label>Note (optional)<input id="f_note"></label>`}
+  else if(kind==="payment"){const ow=agentBook(role).owing,cs=[...new Set(ow.map(o=>o.customer))];
+    body=cs.length?`<p class="muted small">Customers who owe you. Tick each one who paid and check the cartons.</p>
+      <div class="list" id="plines">${cs.map(cu=>`<div class="panel" style="padding:10px 12px;gap:8px"><strong>${esc(cu)}</strong>${ow.filter(o=>o.customer===cu).map(o=>`
+        <div class="pl" data-c="${esc(cu)}" data-p="${esc(o.product)}" data-owed="${o.owed}" style="display:grid;grid-template-columns:auto 1fr 84px;gap:10px;align-items:center">
+          <input type="checkbox" aria-label="Paid" style="width:22px;height:22px"><span>${esc(pname(o.product))}<br><span class="muted small">owes ${o.owed}</span></span>
+          <input type="number" inputmode="numeric" min="1" max="${o.owed}" step="1" value="${o.owed}" aria-label="Cartons paid"></div>`).join("")}
+        <label class="small">Amount paid GH₵ (optional)<input type="number" class="pamt" data-c="${esc(cu)}" inputmode="decimal" min="0" step="0.01"></label></div>`).join("")}</div>
+      ${date}<p class="muted small">Next, raise these in Omni and tap <strong>Raised order in Omni</strong>.</p>`
+      :`<div class="note">No customer owes you anything right now.</div>`;
+    body+=`<button type="button" class="link" data-form="cash">A customer paid on the spot (cash sale) →</button>`}
+  else if(kind==="credit"||kind==="cash"){if(kind==="cash")titleTxt="Cash sale";
+    const cs=customersOf(role);
+    body=`<label>Customer or shop<input id="f_customer" list="custList" autocomplete="off" placeholder="e.g. Auntie Ama, Madina market"><datalist id="custList">${cs.map(x=>`<option value="${esc(x)}">`).join("")}</datalist></label>
+      <div class="lines" id="lines"></div><button type="button" class="link" id="addLine">+ Add another product</button>
+      <div class="grid2">${date}<label>Total amount GH₵ (optional)<input type="number" id="f_amount" inputmode="decimal" min="0" step="0.01"></label></div>
+      <label>Note (optional)<input id="f_note"></label>
+      ${kind==="cash"?`<p class="muted small">For a customer who paid in full on the spot. Next, raise it in Omni and tap <strong>Raised order in Omni</strong>.</p>`:""}`}
+  else if(kind==="raise"){const tr=agentBook(role).toRaise,cs=[...new Set(tr.map(o=>o.customer))];
+    if(!cs.length){titleTxt="Raised order in Omni";body=`<div class="note">Nothing is waiting to be raised. Record <strong>Customer paid</strong> first, then raise the order in Omni and record it here.</div>`}
+    else{titleTxt="Raised order in Omni";body=`<p class="muted small">Everything customers have paid for and you haven't raised yet. Untick anything you didn't raise.</p>
+      <div class="list" id="rlines">${cs.map(cu=>`<div class="panel" style="padding:10px 12px;gap:8px"><strong>${esc(cu)}</strong>${tr.filter(o=>o.customer===cu).map(o=>`
+        <div class="rl" data-c="${esc(cu)}" data-p="${esc(o.product)}" data-left="${o.left}" style="display:grid;grid-template-columns:auto 1fr 84px;gap:10px;align-items:center">
+          <input type="checkbox" checked aria-label="Raised" style="width:22px;height:22px"><span>${esc(pname(o.product))}<br><span class="muted small">${o.left} paid, not raised</span></span>
+          <input type="number" inputmode="numeric" min="0" max="${o.left}" step="1" value="${o.left}" aria-label="Cartons raised"></div>`).join("")}</div>`).join("")}</div>
+      <div class="grid2">${date}<label>Omni order no. (optional)<input id="f_order"></label></div>`}}
+  else if(kind==="ret"){body=`<div class="grid2">${agentSel}${date}</div><div class="grid2">${prod()}${qty}</div><label>Note (optional)<input id="f_note" placeholder="unsold, damaged…"></label>`}
+  else if(kind==="receive"){body=`<div class="grid2">${prod()}${qty}</div><div class="grid2">${date}<label>Supplier / waybill (optional)<input id="f_note"></label></div>`}
+  else if(kind==="count"){body=`${prod()}<div class="grid2"><label>Cartons counted<input type="number" id="f_cartons" inputmode="numeric" min="0" step="1"></label><label>Omni shows (optional)<input type="number" id="f_omni" inputmode="numeric" step="1"></label></div>${date}<p class="muted small">Count at the end of the day, after the last carton has gone out.</p>`}
+  else if(kind==="product"){titleTxt="Add a product";body=`<label>Carton code<input id="f_code" placeholder="e.g. CF 500G"></label>`}
+  else if(kind==="agent"){titleTxt="Agents";body=`<div class="list">${cfg.agents.map((a,i)=>`<div class="item"><span>${esc(a.name)}</span><button type="button" class="link" data-toggle="${i}">${a.active?"Retire":"Bring back"}</button></div>`).join("")}</div><label>New agent's name<input id="f_newagent"></label>`}
+  c.innerHTML=`<form id="theForm" class="lines" novalidate><h2>${esc(titleTxt)}</h2>${body}<div class="err" id="f_err"></div><div class="formbar"><button type="button" class="btn alt slim" id="cancel">Cancel</button><button class="btn slim" type="submit" id="save">Save</button></div></form>`;
+  $("#sheet").hidden=false;
+  if(kind==="issue"){const add=()=>{const d=document.createElement("div");d.className="line";const i=$("#lines").children.length;
+      d.innerHTML=`<label>Product<select id="l_p${i}">${opt(cfg.products,null,pname)}</select></label><label>Cartons<input type="number" id="l_q${i}" inputmode="numeric" min="1" step="1"></label><button type="button" class="x" aria-label="Remove">×</button>`;
+      d.querySelector(".x").onclick=()=>{if($("#lines").children.length>1)d.remove()};$("#lines").appendChild(d)};
+    add();$("#addLine").onclick=add}
+  if(kind==="payment"&&!$("#plines"))$("#save").hidden=true;
+  if(kind==="credit"||kind==="cash"){const add=()=>{const d=document.createElement("div");d.className="line";const i=$("#lines").children.length;
+      d.innerHTML=`<label>Product<select id="l_p${i}">${opt(cfg.products,null,pname)}</select></label><label>Cartons<input type="number" id="l_q${i}" inputmode="numeric" min="1" step="1"></label><button type="button" class="x" aria-label="Remove">×</button>`;
+      d.querySelector(".x").onclick=()=>{if($("#lines").children.length>1)d.remove()};$("#lines").appendChild(d)};
+    add();$("#addLine").onclick=add}
+  if(kind==="raise"&&!$("#rlines"))$("#save").hidden=true;
+  c.querySelectorAll("[data-toggle]").forEach(b=>b.onclick=async()=>{const i=+b.dataset.toggle;const agents=cfg.agents.map((a,j)=>j===i?{...a,active:!a.active}:a);await saveConfig({...cfg,agents});openForm("agent")});
+  $("#cancel").onclick=closeForm;
+  $("#theForm").onsubmit=async ev=>{ev.preventDefault();const err=$("#f_err");err.textContent="";
+    const v=id=>{const el=$("#"+id);return el?el.value.trim():""};
+    try{
+      const base={date:v("f_date")||today(),by:who?who.name:role,uid:me||null,createdAt:new Date().toISOString()};
+      const docs=[];
+      if(kind==="issue"){[...$("#lines").children].forEach((d,i)=>{const q=n(d.querySelector("input").value);if(q>0)docs.push({...base,kind,agent:v("f_agent"),product:d.querySelector("select").value,cartons:q,note:v("f_note"),status:"pending"})});
+        if(!docs.length)throw"Enter the number of cartons for at least one product."}
+      else if(kind==="payment"){const amts={},used={};
+        document.querySelectorAll(".pamt").forEach(i=>{if(i.value!=="")amts[i.dataset.c]=n(i.value)});
+        document.querySelectorAll("#plines .pl").forEach(d=>{if(!d.querySelector("input[type=checkbox]").checked)return;
+          const q=n(d.querySelector("input[type=number]").value),owed=n(d.dataset.owed),cu=d.dataset.c;
+          if(!(q>0))throw`Enter the cartons ${cu} paid for.`;if(q>owed)throw`${cu} owes ${owed} × ${d.dataset.p}, not ${q}.`;
+          docs.push({...base,kind,agent:role,customer:cu,product:d.dataset.p,cartons:q,amount:used[cu]?null:(amts[cu]??null),status:""});used[cu]=1});
+        if(!docs.length)throw"Tick at least one customer who paid.";
+      }
+      else if(kind==="credit"||kind==="cash"){
+        let cust=v("f_customer");if(!cust)throw"Type the customer's name.";
+        const known=customersOf(role).find(x=>x.toLowerCase()===cust.toLowerCase());if(known)cust=known;
+        const b=agentBook(role),want={};
+        [...$("#lines").children].forEach(d=>{const q=n(d.querySelector("input").value),p=d.querySelector("select").value;if(q>0){want[p]=(want[p]||0)+q}});
+        if(!Object.keys(want).length)throw"Enter the number of cartons for at least one product.";
+        for(const p in want){const h=b.handFor(p);if(want[p]>h)throw`You only have ${Math.max(h,0)} × ${p} in hand, not ${want[p]}. Check the number, or ask Frank to record the cartons he gave you.`}
+        const amt=v("f_amount")===""?null:n(v("f_amount"));
+        Object.entries(want).forEach(([p,q],i)=>docs.push({...base,kind:kind==="cash"?"payment":kind,agent:role,customer:cust,product:p,cartons:q,amount:i===0?amt:null,note:v("f_note"),status:kind==="cash"?"cash":""}));
+      }
+      else if(kind==="raise"){
+        [...document.querySelectorAll("#rlines .rl")].forEach(d=>{if(!d.querySelector("input[type=checkbox]").checked)return;
+          const q=n(d.querySelector("input[type=number]").value),left=n(d.dataset.left),cust=d.dataset.c;
+          if(q>left)throw`Only ${left} × ${d.dataset.p} has been paid for by ${cust}. Record the payment first.`;
+          if(q>0)docs.push({...base,kind,agent:role,customer:cust,product:d.dataset.p,cartons:q,orderNo:v("f_order")})});
+        if(!docs.length)throw"Tick at least one customer you raised an order for.";
+      }
+      else if(kind==="product"){const code=v("f_code").toUpperCase();if(!code)throw"Type the carton code.";if(cfg.products.includes(code))throw code+" is already on the list.";await saveConfig({...cfg,products:[...cfg.products,code]});closeForm();toast("Added "+code);return}
+      else if(kind==="agent"){const nm=v("f_newagent");if(!nm){closeForm();return}if(agentNames().includes(nm))throw nm+" is already on the list.";await saveConfig({...cfg,agents:[...cfg.agents,{name:nm,active:true}]});closeForm();toast("Added "+nm+". Their code is on the Codes tab of the Sheet.");return}
+      else{
+        const q=n(v("f_cartons"));
+        if(kind==="count"){if(v("f_cartons")==="")throw"Enter the number of cartons you counted."}else if(!(q>0))throw"Enter the number of cartons.";
+        const d={...base,kind,product:v("f_product"),cartons:q};
+        if(kind==="credit"||kind==="payment"){d.customer=v("f_customer");if(!d.customer)throw"Type the customer's name.";d.amount=v("f_amount")===""?null:n(v("f_amount"));d.agent=role;d.note=v("f_note")}
+        if(kind==="raise"){d.agent=role;d.orderNo=v("f_order")}
+        if(kind==="ret"){d.agent=v("f_agent");d.note=v("f_note")}
+        if(kind==="receive"){d.note=v("f_note")}
+        if(kind==="count"){d.omni=v("f_omni")===""?null:n(v("f_omni"))}
+        if(kind==="payment"){const cu=agentBook(role).customers.find(c=>c.name.toLowerCase()===d.customer.toLowerCase());
+          if(!cu||cu.owed<=0)throw`${d.customer} has no credit recorded with you. Check the spelling, or record the credit first.`;
+          if(q>cu.owed)throw`${d.customer} owes ${cu.owed} cartons, not ${q}.`;d.customer=cu.name}
+        docs.push(d);
+      }
+      docs.forEach((d,i)=>d.id="tmp-"+Date.now()+"-"+i);
+      later(()=>allEntries.push(...docs.map(d=>({...d}))),"addEntries",docs.map(({id,...d})=>d));
+      closeForm();toast(docs.length>1?`Saved ${docs.length} entries`:"Saved");
+    }catch(e){$("#save")&&($("#save").disabled=false);err.textContent=typeof e==="string"?e:writeError(e)}
+  };
+}
+function writeError(e){
+  const m=String(e&&e.message||e||"");
+  if(m.indexOf("ACCESS")>=0){return "Your code no longer works. Tap Change code and enter the one Nana gave you."}
+  if(m.indexOf("DENIED:")>=0){const t=m.slice(m.indexOf("DENIED:")+7).trim();return t.charAt(0).toUpperCase()+t.slice(1)}
+  if(e&&e.code==="quota_exceeded")return "The book is full. Ask Nana to archive old entries.";
+  return "Couldn't save. Check your connection and try again."
+}
+function closeForm(){$("#sheet").hidden=true;$("#sheetCard").innerHTML=""}
+async function saveConfig(next){apply(await call("saveConfig",next))}
+
+/* ---------- events ---------- */
+document.addEventListener("click",async ev=>{
+  const vw=ev.target.closest("[data-view]");if(vw){view=vw.dataset.view;render();window.scrollTo(0,0);return}
+  const r=ev.target.closest("[data-role]");if(r&&isMgr()){role=r.dataset.role;store("ohRole",role);render();window.scrollTo(0,0);return}
+  const f=ev.target.closest("[data-form]");if(f){openForm(f.dataset.form);return}
+  const a=ev.target.closest("[data-act]");if(!a)return;
+  const id=a.dataset.id;
+  
+  try{
+    if(a.dataset.act==="confirm"){const p={status:"confirmed",confirmedAt:new Date().toISOString()};later(()=>Object.assign(findE(id)||{},p),"updateEntry",id,p);toast("Confirmed")}
+    if(a.dataset.act==="dispute"){const card=$("#sheetCard");card.innerHTML=`<form id="dForm" class="lines"><h2>What's wrong with it?</h2><label>How many cartons did you actually take?<input type="number" id="d_n" inputmode="numeric" min="0" step="1"></label><label>Anything else Nana and Frank should know (optional)<input id="d_note" placeholder="e.g. 5 cartons were left at the warehouse"></label><div class="err" id="d_err"></div><div class="formbar"><button type="button" class="btn alt slim" id="cancel">Cancel</button><button class="btn slim">Send</button></div></form>`;
+      $("#sheet").hidden=false;$("#cancel").onclick=closeForm;$("#dForm").onsubmit=async e=>{e.preventDefault();const dn=$("#d_n").value;if(dn===""){$("#d_err").textContent="Enter the number of cartons you took.";return}
+        const p={status:"disputed",disputeCartons:n(dn),disputeNote:$("#d_note").value.trim()};later(()=>Object.assign(findE(id)||{},p),"updateEntry",id,p);closeForm();toast("Sent to Nana and Frank")}}
+    if(a.dataset.act==="settle"){
+      const settle=(num,note)=>later(()=>{const e=findE(id);if(e)Object.assign(e,{status:"confirmed",resolution:(num===e.cartons?"Kept at ":"Changed from "+e.cartons+" to ")+num+" by "+who.name.split(" ")[0],cartons:num})},"resolveDispute",id,num,note);
+      if(a.dataset.n!==undefined&&!isMgr()){settle(+a.dataset.n,"");toast("Settled. Everyone has been told.");return}
+      const e=entries.find(x=>x.id===id);const card=$("#sheetCard");
+      card.innerHTML=`<form id="rForm" class="lines"><h2>Settle the dispute</h2><p>${esc(e.agent.split(" ")[0])}, ${esc(e.product)} on ${fmtDate(e.date)}. Frank recorded ${n(e.cartons)}; ${esc(e.agent.split(" ")[0])} says ${e.disputeCartons!=null?n(e.disputeCartons):"it's wrong"}.</p>
+        <label>Correct number of cartons<input type="number" id="r_n" inputmode="numeric" min="0" step="1" value="${a.dataset.n??""}"></label><label>Reason (optional)<input id="r_note" placeholder="e.g. checked the waybill"></label><div class="err" id="r_err"></div>
+        <div class="formbar"><button type="button" class="btn alt slim" id="cancel">Cancel</button><button class="btn slim">Settle</button></div></form>`;
+      $("#sheet").hidden=false;$("#cancel").onclick=closeForm;
+      $("#rForm").onsubmit=async ev2=>{ev2.preventDefault();const rn=$("#r_n").value;if(rn===""){$("#r_err").textContent="Enter the correct number.";return}
+        settle(n(rn),$("#r_note").value.trim());closeForm();toast("Settled. Everyone has been told.")}}
+    if(a.dataset.act==="del"){if(a.dataset.armed){later(()=>{allEntries=allEntries.filter(e=>e.id!==id)},"deleteEntry",id);toast("Deleted")}else{a.dataset.armed="1";a.textContent="Tap again to delete";setTimeout(()=>{if(a.isConnected){delete a.dataset.armed;a.textContent="Delete"}},3000)}}
+  }catch(e){toast(writeError(e))}
+});
+document.getElementById("changeCode").onclick=()=>{needCode=true;accessCode=null;who=null;role=null;loaded=false;allEntries=[];store("ohCode","");render()};
+document.addEventListener("change",ev=>{if(ev.target.id==="entryType"){entryType=ev.target.value;render();return}if(ev.target.id==="weekPick"&&ev.target.value){weekOf=mondayOf(ev.target.value);render()}});
+$("#sheet").addEventListener("click",ev=>{if(ev.target.id==="sheet")closeForm()});
+document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&!$("#sheet").hidden)closeForm()});
+
+/* ---------- boot ---------- */
+render();
+function call(fn,...args){return new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](accessCode||"",...args))}
+// Writes show on screen at once and are saved in the background, one after another.
+let queue=Promise.resolve(),pending=0;
+function later(mutate,fn,...args){
+  mutate();render();pending++;setSync();
+  queue=queue.then(()=>call(fn,...args)).then(d=>{pending--;if(!pending)apply(d);else setSync()})
+    .catch(e=>{pending--;toast(writeError(e)+" Your last change was not saved.");if(!pending)load();setSync()});
+}
+function setSync(){if(pending)$("#status").textContent="Saving…"}
+function findE(id){return allEntries.find(e=>e.id===id)}
+function apply(d){allEntries=d.entries||[];if(d.config)cfg={...DEFAULT_CONFIG,...d.config};who=d.me||who;bookInfo=d.book||null;role=myRole();loaded=true;needCode=false;
+  $("#status").textContent=(who?who.name.split(" ")[0]+" · ":"")+allEntries.length+" entries · updated "+new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});render()}
+async function load(fromForm){
+  if(pending)return;
+  try{const d=await call("getData");if(!pending)apply(d)}
+  catch(e){const m=String(e&&e.message||e);
+    if(m.indexOf("ACCESS")>=0){needCode=true;who=null;loaded=false;allEntries=[];render();if(fromForm)$("#codeErr").textContent=m.indexOf("retired")>=0?m.slice(m.indexOf("ACCESS:")+7).trim():"That code is not right. Check with Nana."}
+    else $("#status").textContent="Couldn't reach the stock book. Check your connection; it will retry."}
+}
+me=store("ohDevice")||("d"+Math.random().toString(36).slice(2,10));store("ohDevice",me);
+accessCode=store("ohCode");
+if(accessCode)load();else{needCode=true;render()}
+window.addEventListener("beforeunload",e=>{if(pending){e.preventDefault();e.returnValue=""}});
+setInterval(()=>{if(document.visibilityState==="visible"&&!needCode&&$("#sheet").hidden)load()},30000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&!needCode)load()});
+})();
+</script>
+
+</body></html>
