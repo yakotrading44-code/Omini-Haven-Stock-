@@ -370,6 +370,27 @@ function deleteEntry(code, id) {
   });
 }
 
+// Empties the Entries tab for a fresh start. A copy of every entry is kept on a new Backup tab first,
+// so nothing is lost if this was a mistake. Products, agents and codes are not touched.
+function clearAllEntries(code, confirmWord) {
+  var me = whoIs_(code);
+  if (me.role !== 'manager') deny_('only Nana can clear the book.');
+  if (String(confirmWord || '').trim().toUpperCase() !== 'CLEAR') deny_('type CLEAR to confirm.');
+  return withLock_(function () {
+    var sh = entriesSheet_();
+    var last = sh.getLastRow(), width = sh.getLastColumn();
+    if (last > 1) {
+      var base = 'Backup ' + Utilities.formatDate(new Date(), book_().getSpreadsheetTimeZone(), 'yyyy-MM-dd HH:mm');
+      var name = base;
+      for (var i = 2; book_().getSheetByName(name); i++) name = base + ' (' + i + ')';
+      var values = sh.getRange(1, 1, last, width).getValues();
+      book_().insertSheet(name).getRange(1, 1, last, width).setValues(values);
+      sh.getRange(2, 1, last - 1, width).clearContent();
+    }
+    return readAll_(me);
+  });
+}
+
 function saveConfig(code, config) {
   var me = whoIs_(code);
   if (me.role !== 'manager') deny_('only Nana can change products and agents.');

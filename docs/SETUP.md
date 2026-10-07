@@ -78,7 +78,7 @@ How to prevent disputes:
 - Only Nana or the person who made an entry can delete it.
 
 ## Part 5: Start of each month
-To start fresh, make a new copy of the Sheet with the new opening stock, or ask Claude to prepare one from the Multipro invoice. Then repeat Part 1 steps 2 to 5.
+To start fresh, open your page and tap **Clear all entries** under **Start fresh**, then type CLEAR. Every entry is removed for everyone, but a full copy is kept first on a new **Backup** tab in the Sheet. Products, agents and codes stay. Then have Frank record the new opening stock with **Count the warehouse**.
 
 ## Changing the app later: automatic updates from GitHub
 After this one-time setup, every change merged on GitHub goes live by itself. The link, the codes and the data stay the same. Do it on a laptop, after Part 1 is done.

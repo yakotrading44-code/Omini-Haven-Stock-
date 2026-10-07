@@ -73,4 +73,19 @@ test('delete: only Nana or whoever entered it', () => {
   G.deleteEntry('W1', frankEntry.id);
 });
 
+test('clear all: only Nana, needs CLEAR, keeps a backup tab', () => {
+  const before = G.getData('M1').entries.length;
+  assert.ok(before > 0);
+  denied(() => G.clearAllEntries('W1', 'CLEAR'), /only Nana/);
+  denied(() => G.clearAllEntries('M1', 'yes'), /CLEAR/);
+  assert.strictEqual(G.clearAllEntries('M1', 'clear').entries.length, 0);
+  const backup = Object.keys(book.sheets).find(n => /^Backup /.test(n));
+  assert.strictEqual(book.sheets[backup].lastRow(), before + 1);
+  assert.strictEqual(G.getData('P1').entries.length, 0);
+  G.addEntries('W1', [{ kind: 'receive', product: 'OC', cartons: 10, date: '2026-10-07' }]);
+  assert.strictEqual(G.getData('M1').entries.length, 1);
+  G.clearAllEntries('M1', 'CLEAR');
+  assert.strictEqual(Object.keys(book.sheets).filter(n => /^Backup /.test(n)).length, 2);
+});
+
 console.log(`\n${passed} tests passed`);

@@ -339,6 +339,7 @@ function renderManager(){
     </tbody></table></div><p class="muted small">"Last check" compares Frank's count with the Omni figure he noted that day, after allowing for cartons not raised. It should read Matches.</p></section>`;
   h+=weekTable("Weekly movement",addDays(weekOf,6));
   h+=`<section><h3>Products and agents</h3><div class="actions"><button class="btn alt" data-form="product">Add a product</button><button class="btn alt" data-form="agent">Add or retire an agent</button></div></section>`;
+  h+=`<section><h3>Start fresh</h3><p class="muted small">Removes every entry from the app, for example at the start of a new month. A copy is kept in the Sheet first.</p><div class="actions"><button class="btn alt" data-form="clear">Clear all entries</button></div></section>`;
   if(bookInfo)h+=`<p class="muted small">Every entry is saved to the Google Sheet <a href="${esc(bookInfo.url)}" target="_blank" rel="noopener">${esc(bookInfo.name)}</a>, on the Entries tab. People's codes are on its Codes tab.</p>`;
   main.innerHTML=h;
 }
@@ -404,9 +405,11 @@ function openForm(kind){
   else if(kind==="receive"){body=`<div class="grid2">${prod()}${qty}</div><div class="grid2">${date}<label>Supplier / waybill (optional)<input id="f_note"></label></div>`}
   else if(kind==="count"){body=`${prod()}<div class="grid2"><label>Cartons counted<input type="number" id="f_cartons" inputmode="numeric" min="0" step="1"></label><label>Omni shows (optional)<input type="number" id="f_omni" inputmode="numeric" step="1"></label></div>${date}<p class="muted small">Count at the end of the day, after the last carton has gone out.</p>`}
   else if(kind==="product"){titleTxt="Add a product";body=`<label>Carton code<input id="f_code" placeholder="e.g. CF 500G"></label>`}
+  else if(kind==="clear"){titleTxt="Clear all entries";body=`<p>This removes all ${allEntries.length} entries for everyone: deliveries, credit, payments, raised orders and counts. Products, agents and codes stay.</p><p class="muted small">A full copy is saved first on a new <strong>Backup</strong> tab in the Sheet, so you can look back or copy rows back if needed.</p><label>Type CLEAR to confirm<input id="f_confirm" autocomplete="off" autocapitalize="characters"></label>`}
   else if(kind==="agent"){titleTxt="Agents";body=`<div class="list">${cfg.agents.map((a,i)=>`<div class="item"><span>${esc(a.name)}</span><button type="button" class="link" data-toggle="${i}">${a.active?"Retire":"Bring back"}</button></div>`).join("")}</div><label>New agent's name<input id="f_newagent"></label>`}
   c.innerHTML=`<form id="theForm" class="lines" novalidate><h2>${esc(titleTxt)}</h2>${body}<div class="err" id="f_err"></div><div class="formbar"><button type="button" class="btn alt slim" id="cancel">Cancel</button><button class="btn slim" type="submit" id="save">Save</button></div></form>`;
   $("#sheet").hidden=false;
+  if(kind==="clear")$("#save").textContent="Clear everything";
   if(kind==="issue"){const add=()=>{const d=document.createElement("div");d.className="line";const i=$("#lines").children.length;
       d.innerHTML=`<label>Product<select id="l_p${i}">${opt(cfg.products,null,pname)}</select></label><label>Cartons<input type="number" id="l_q${i}" inputmode="numeric" min="1" step="1"></label><button type="button" class="x" aria-label="Remove">×</button>`;
       d.querySelector(".x").onclick=()=>{if($("#lines").children.length>1)d.remove()};$("#lines").appendChild(d)};
@@ -451,6 +454,7 @@ function openForm(kind){
           if(q>0)docs.push({...base,kind,agent:role,customer:cust,product:d.dataset.p,cartons:q,orderNo:v("f_order")})});
         if(!docs.length)throw"Tick at least one customer you raised an order for.";
       }
+      else if(kind==="clear"){if(v("f_confirm").toUpperCase()!=="CLEAR")throw"Type CLEAR to confirm.";apply(await call("clearAllEntries",v("f_confirm")));closeForm();toast("All entries cleared. A copy is on the Backup tab of the Sheet.");return}
       else if(kind==="product"){const code=v("f_code").toUpperCase();if(!code)throw"Type the carton code.";if(cfg.products.includes(code))throw code+" is already on the list.";await saveConfig({...cfg,products:[...cfg.products,code]});closeForm();toast("Added "+code);return}
       else if(kind==="agent"){const nm=v("f_newagent");if(!nm){closeForm();return}if(agentNames().includes(nm))throw nm+" is already on the list.";await saveConfig({...cfg,agents:[...cfg.agents,{name:nm,active:true}]});closeForm();toast("Added "+nm+". Their code is on the Codes tab of the Sheet.");return}
       else{

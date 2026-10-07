@@ -11,7 +11,7 @@ Sheet.prototype={
     const get=()=>{const out=[];for(let i=0;i<nr;i++){const row=[];for(let j=0;j<nc;j++){const v=(sh.rows[r-1+i]||[])[col-1+j];row.push(v==null?'':v)}out.push(row)}return out};
     const R={getValues:get,getDisplayValues:()=>get().map(x=>x.map(String)),getValue:()=>get()[0][0],getDisplayValue:()=>String(get()[0][0]),
       setValues(v){v.forEach((row,i)=>row.forEach((x,j)=>{while(sh.rows.length<r+i)sh.rows.push([]);sh.rows[r-1+i][col-1+j]=x}));return R},
-      setValue(x){return R.setValues([[x]])},setNumberFormat(){return R}};
+      setValue(x){return R.setValues([[x]])},clearContent(){for(let i=0;i<nr;i++)for(let j=0;j<nc;j++)if(sh.rows[r-1+i])sh.rows[r-1+i][col-1+j]='';return R},setNumberFormat(){return R}};
     return R},
   getDataRange(){return this.getRange(1,1,Math.max(1,this.lastRow()),Math.max(1,this.getLastColumn()))},
   deleteRow(r){this.rows.splice(r-1,1)}
