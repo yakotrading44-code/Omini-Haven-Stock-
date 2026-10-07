@@ -114,7 +114,7 @@ const DEFAULT_CONFIG={
 };
 const KIND={issue:"Cartons given to agent",receive:"Received from supplier",ret:"Returned to warehouse",count:"Warehouse count",
   raise:"Order raised in Omni",credit:"Given on credit",payment:"Customer paid"};
-let view="book",entryType="all",allEntries=[],db=true,accessCode=null,needCode=false,me=null,who=null,bookInfo=null,cfg=DEFAULT_CONFIG,entries=[],role=null,canWrite=true,loaded=false,weekOf=mondayOf(today());
+let view="book",entryType="all",byDate={kind:"issue",from:"",to:"",agent:""},allEntries=[],db=true,accessCode=null,needCode=false,me=null,who=null,bookInfo=null,cfg=DEFAULT_CONFIG,entries=[],role=null,canWrite=true,loaded=false,weekOf=mondayOf(today());
 const $=s=>document.querySelector(s);
 const main=$("#main");
 
@@ -215,10 +215,11 @@ function render(){
     $("#codeForm").onsubmit=e=>{e.preventDefault();accessCode=$("#codeIn").value.trim();store("ohCode",accessCode);load(true)};return}
   if(!loaded||!role){main.innerHTML=`<div class="empty">Loading the shared book…</div>`;return}
   if(view==="entries")renderEntries();
+  else if(view==="dates")renderByDate();
   else if(role==="Nana (manager)")renderManager();
   else if(role===(cfg.warehouse||"Frank"))renderFrank();
   else renderAgent(role);
-  main.insertAdjacentHTML("afterbegin",`<div class="who" role="tablist" aria-label="Pages"><button class="chip" role="tab" aria-pressed="${view!=="entries"}" data-view="book">${role==="Nana (manager)"?"Overview":role===(cfg.warehouse||"Frank")?"Warehouse":"My book"}</button><button class="chip" role="tab" aria-pressed="${view==="entries"}" data-view="entries">Entries</button></div>`);
+  main.insertAdjacentHTML("afterbegin",`<div class="who" role="tablist" aria-label="Pages"><button class="chip" role="tab" aria-pressed="${view==="book"}" data-view="book">${role==="Nana (manager)"?"Overview":role===(cfg.warehouse||"Frank")?"Warehouse":"My book"}</button><button class="chip" role="tab" aria-pressed="${view==="entries"}" data-view="entries">Entries</button><button class="chip" role="tab" aria-pressed="${view==="dates"}" data-view="dates">By date</button></div>`);
 }
 const ENTRY_TYPES={all:"Everything",issue:"Cartons given out",ret:"Returns",receive:"Received from supplier",count:"Warehouse counts",credit:"Credit",payment:"Payments",raise:"Orders raised"};
 function renderEntries(){
@@ -227,6 +228,35 @@ function renderEntries(){
   if(!types.includes(entryType))entryType="all";
   main.innerHTML=`<section><div class="weekbar"><h2>Entries</h2><select id="entryType" aria-label="Show">${types.map(k=>`<option value="${k}"${k===entryType?" selected":""}>${ENTRY_TYPES[k]}</option>`).join("")}</select></div></section>`+
     recentHtml(e=>mine(e)&&(entryType==="all"||e.kind===entryType),"Newest first",400);
+}
+
+// One row per day and agent, one column per product, so cartons can be traced and filtered by date.
+const BY_DATE_KINDS={issue:"Cartons taken",raise:"Raised in Omni",ret:"Returned"};
+function dmy(iso){return iso?iso.split("-").reverse().join("/"):""}
+function renderByDate(){
+  const isFrank=role===(cfg.warehouse||"Frank"),all=role==="Nana (manager)"||isFrank;
+  const kinds=isFrank?["issue","ret"]:Object.keys(BY_DATE_KINDS);
+  if(!kinds.includes(byDate.kind))byDate.kind="issue";
+  const base=entries.filter(e=>e.kind===byDate.kind&&(all||e.agent===role));
+  const agents=[...new Set(base.map(e=>e.agent))].sort();
+  if(byDate.agent&&!agents.includes(byDate.agent))byDate.agent="";
+  const E=base.filter(e=>(!byDate.from||e.date>=byDate.from)&&(!byDate.to||e.date<=byDate.to)&&(!byDate.agent||e.agent===byDate.agent));
+  const rows={};
+  for(const e of E){const k=e.date+"|"+e.agent;const r=rows[k]||(rows[k]={date:e.date,agent:e.agent,q:{},carry:false});r.q[e.product]=(r.q[e.product]||0)+n(e.cartons);if(/carried over/i.test(e.note||""))r.carry=true}
+  const list=Object.values(rows).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.agent<b.agent?-1:1);
+  const prods=cfg.products.filter(p=>E.some(e=>e.product===p)).concat([...new Set(E.map(e=>e.product))].filter(p=>!cfg.products.includes(p)));
+  const tot=p=>list.reduce((t,r)=>t+(r.q[p]||0),0),rowTot=r=>prods.reduce((t,p)=>t+(r.q[p]||0),0);
+  let h=`<section><h2>${BY_DATE_KINDS[byDate.kind]} by date</h2><div class="grid2">
+    <label>Show<select id="bd_kind">${kinds.map(k=>`<option value="${k}"${k===byDate.kind?" selected":""}>${BY_DATE_KINDS[k]}</option>`).join("")}</select></label>
+    ${all?`<label>Agent<select id="bd_agent"><option value="">Everyone</option>${agents.map(a=>`<option${a===byDate.agent?" selected":""}>${esc(a)}</option>`).join("")}</select></label>`:"<span></span>"}
+    <label>From<input type="date" id="bd_from" value="${byDate.from}"></label><label>To<input type="date" id="bd_to" value="${byDate.to}"></label></div>
+    ${byDate.from||byDate.to||byDate.agent?`<button class="link" id="bd_clear" type="button">Show all dates</button>`:""}</section>`;
+  if(!list.length){main.innerHTML=h+`<div class="empty">Nothing recorded for these dates.</div>`;return}
+  h+=`<section><div class="tbl"><table><thead><tr><th>Date</th>${all?`<th style="text-align:left">Agent</th>`:""}${prods.map(p=>`<th>${esc(p)}</th>`).join("")}<th>Total</th></tr></thead><tbody>
+    ${list.map(r=>`<tr><td style="white-space:nowrap">${dmy(r.date)}${r.carry?`<div class="muted small">carry-over</div>`:""}</td>${all?`<td style="text-align:left">${esc(r.agent)}</td>`:""}${prods.map(p=>`<td>${r.q[p]||""}</td>`).join("")}<td><strong>${rowTot(r)}</strong></td></tr>`).join("")}
+    <tr><td><strong>Total</strong></td>${all?"<td></td>":""}${prods.map(p=>`<td><strong>${tot(p)}</strong></td>`).join("")}<td><strong>${list.reduce((t,r)=>t+rowTot(r),0)}</strong></td></tr>
+    </tbody></table></div><p class="muted small">${list.length} row${list.length>1?"s":""}. Each row is one agent on one day. On a phone, swipe the table sideways to see every product.</p></section>`;
+  main.innerHTML=h;
 }
 
 function stat(k,v,s,cls=""){return `<div class="stat ${cls}"><span class="k">${k}</span><span class="v">${v}</span>${s?`<span class="s">${s}</span>`:""}</div>`}
@@ -490,6 +520,7 @@ async function saveConfig(next){apply(await call("saveConfig",next))}
 /* ---------- events ---------- */
 document.addEventListener("click",async ev=>{
   const vw=ev.target.closest("[data-view]");if(vw){view=vw.dataset.view;render();window.scrollTo(0,0);return}
+  if(ev.target.id==="bd_clear"){byDate={...byDate,from:"",to:"",agent:""};render();return}
   const r=ev.target.closest("[data-role]");if(r&&isMgr()){role=r.dataset.role;store("ohRole",role);render();window.scrollTo(0,0);return}
   const f=ev.target.closest("[data-form]");if(f){openForm(f.dataset.form);return}
   const a=ev.target.closest("[data-act]");if(!a)return;
@@ -514,7 +545,8 @@ document.addEventListener("click",async ev=>{
   }catch(e){toast(writeError(e))}
 });
 document.getElementById("changeCode").onclick=()=>{needCode=true;accessCode=null;who=null;role=null;loaded=false;allEntries=[];store("ohCode","");render()};
-document.addEventListener("change",ev=>{if(ev.target.id==="entryType"){entryType=ev.target.value;render();return}if(ev.target.id==="weekPick"&&ev.target.value){weekOf=mondayOf(ev.target.value);render()}});
+document.addEventListener("change",ev=>{if(ev.target.id==="entryType"){entryType=ev.target.value;render();return}
+  const bd={bd_kind:"kind",bd_agent:"agent",bd_from:"from",bd_to:"to"}[ev.target.id];if(bd){byDate[bd]=ev.target.value;render();return}if(ev.target.id==="weekPick"&&ev.target.value){weekOf=mondayOf(ev.target.value);render()}});
 $("#sheet").addEventListener("click",ev=>{if(ev.target.id==="sheet")closeForm()});
 document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&!$("#sheet").hidden)closeForm()});
 

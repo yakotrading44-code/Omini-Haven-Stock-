@@ -51,7 +51,7 @@ If you used the old app, archive it: **Deploy > Manage deployments > Archive**, 
 | Frank | Every Saturday, after the last carton goes out | **Count the warehouse** for each product, and type in what the Omni app shows. |
 | Nana | Monday | Read the summary email. Open the app and check that "Last check" reads **Matches** for every product. |
 
-The app refuses any credit, cash sale or return bigger than what the agent holds, and any order raised before the customer has paid. Past entries are on the **Entries** tab of each page.
+The app refuses any credit, cash sale or return bigger than what the agent holds, and any order raised before the customer has paid. Past entries are on the **Entries** tab of each page. The **By date** tab shows a table of cartons taken (or raised, or returned) per agent per day, with From and To dates to filter.
 
 The rule that keeps the books balanced: **cartons taken = raised in Omni + returned + still with the agent**. "Still with the agent" is split into cartons out on credit, cartons paid but not yet raised, and unsold cartons in hand. Order of steps for every sale: **credit (if any) → customer paid → raised in Omni**.
 
