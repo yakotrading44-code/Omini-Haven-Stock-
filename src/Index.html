@@ -277,18 +277,19 @@ function renderAgent(a){
     ${stat("Unsold in hand",b.inHand,"not on credit",b.inHand<0?"bad":"")}
     ${stat("Paid, not raised",b.toRaiseTotal,"waiting to be raised",b.toRaiseTotal?"hl":"")}
   </div>`:""}
-  ${mgr?"":`<p class="muted small">Frank and Nana record everything here. This page shows what you have taken and what is still with you. If a number looks wrong, tell Frank or Nana.</p>`}
+  ${b.pending.length?`<div class="note">Frank has recorded ${b.pending.length} deliver${b.pending.length>1?"ies":"y"} to ${mgr?esc(first):"you"}. ${mgr?`${esc(first)} hasn't confirmed ${b.pending.length>1?"them":"it"} yet.`:`Please confirm ${b.pending.length>1?"them":"it"} below.`}</div>`:""}
+  ${mgr?"":`<p class="muted small">Frank and Nana record everything else. This page shows what you have taken and what is still with you.</p>`}
   </section>`;
   if(mgr)h+=`<section><h2>Record for ${esc(first)}</h2><div class="actions">
     <button class="btn" data-form="mraise">Raised in Omni<small>${esc(first)}'s orders, from the Omni app</small></button>
     <button class="btn alt" data-form="credit">Gave cartons on credit<small>optional: track a customer who owes</small></button>
     <button class="btn alt" data-form="payment">Customer paid<small>optional: clears that customer's credit</small></button>
   </div></section>`;
-  if(b.disputed.length){
-    h+=`<section><h3>Disputed deliveries</h3><div class="list">${[...b.pending,...b.disputed].map(e=>`
+  if(b.pending.length||b.disputed.length){
+    h+=`<section><h3>Cartons Frank gave ${mgr?esc(first):"you"}</h3><div class="list">${[...b.pending,...b.disputed].map(e=>`
       <div class="item"><div class="main"><strong>${n(e.cartons)} × ${esc(e.product)}</strong><span class="muted small">${fmtDate(e.date)}${e.note?" · "+esc(e.note):""}</span></div>
-      <div class="row">${e.status==="disputed"?`<span class="pill bad">Disputed: ${e.disputeCartons!=null?n(e.disputeCartons):"wrong"}. Waiting for Nana</span>`:
-        ""}</div></div>`).join("")}</div></section>`;
+      <div class="row">${e.status==="disputed"?`<span class="pill bad">${mgr?"Says":"You said"} ${e.disputeCartons!=null?n(e.disputeCartons):"it's wrong"}. Waiting for Frank or Nana</span>`:
+        mgr?`<span class="pill warn">Not confirmed yet</span>`:`<button class="btn slim" data-act="confirm" data-id="${e.id}">That's right</button><button class="btn slim alt" data-act="dispute" data-id="${e.id}">That's wrong</button>`}</div></div>`).join("")}</div></section>`;
   }
   const owing=b.customers.filter(c=>c.owed>0);
   if(owing.length||mgr)h+=`<section><h3>Customers who owe</h3>${owing.length?`<div class="tbl"><table><thead><tr><th>Customer</th><th>Cartons owed</th><th>Amount owed</th><th>Oldest</th></tr></thead><tbody>
@@ -332,6 +333,7 @@ function renderFrank(){
   </div>
   ${uncounted?`<div class="note">${!rows.length?"Stock available needs a starting point. Count each product once with <strong>Count the warehouse</strong>; after that, every carton in and out keeps it up to date.":uncounted+" products have never been counted, so their stock available is unknown."}</div>`:""}
   </section>`;
+  h+=waitingHtml();
   h+=`<section><h3>Stock available now</h3><div class="tbl"><table><thead><tr><th>Product</th><th>Last count</th><th>In since</th><th>Out since</th><th>Available</th><th>Agents haven't raised</th></tr></thead><tbody>
     ${rows.map(r=>`<tr><td>${esc(r.p)}<div class="muted small">${esc((cfg.names||{})[r.p]||"")}</div></td><td>${r.count?`${n(r.count.cartons)} <span class="muted small">${fmtDate(r.count.date)}</span>`:`<span class="pill warn">Not counted</span>`}</td>
       <td>${r.count?r.recv+r.ret:"—"}</td><td>${r.count?r.iss:"—"}</td><td><strong>${r.avail==null?"—":r.avail<0?`<span class="pill bad">${r.avail}</span>`:r.avail}</strong></td><td>${r.nr}</td></tr>`).join("")}
@@ -365,6 +367,7 @@ function renderManager(){
   ${unexpl.length?`<div class="note bad">At the last count, ${unexpl.map(r=>`${esc(r.p)} is off by ${r.unexplained}`).join(", ")} after allowing for cartons not raised. Those cartons are missing or an entry was skipped.</div>`:""}
   </section>`;
   h+=disputesHtml(true);
+  h+=waitingHtml();
   h+=`<section><h3>Each agent</h3><div class="tbl"><table><thead><tr><th>Agent</th><th>Taken</th><th>Raised</th><th>Returned</th><th>Not raised</th><th>On credit</th><th>Paid, not raised</th><th>Unsold</th><th>Oldest credit</th></tr></thead><tbody>
     ${books.map(([a,b])=>{const old=b.customers.find(c=>c.owed>0);return `<tr><td>${esc(a)}${cfg.agents.find(x=>x.name===a&&!x.active)?` <span class="pill plain">former</span>`:""}</td><td>${b.taken}</td><td>${b.raised}</td><td>${b.returned}</td><td><strong>${b.withMe}</strong></td><td>${b.onCredit}</td><td>${b.toRaiseTotal?`<span class="pill warn">${b.toRaiseTotal}</span>`:0}</td><td>${b.inHand<0?`<span class="pill bad">${b.inHand}</span>`:b.inHand}</td><td>${old?agePill(old.days):"—"}</td></tr>`}).join("")}
     </tbody></table></div></section>`;
@@ -471,7 +474,7 @@ function openForm(kind){
         for(const p in want){const h=b.handFor(p);if(want[p]>h)throw`${a.split(" ")[0]} only has ${Math.max(h,0)} × ${p}, not ${want[p]}. Check the number, or record Frank's delivery first.`}
         Object.entries(want).forEach(([p,q])=>docs.push({...base,kind:"raise",agent:a,product:p,cartons:q,orderNo:v("f_order")}));
       }
-      else if(kind==="issue"){[...$("#lines").children].forEach((d,i)=>{const q=n(d.querySelector("input").value);if(q>0)docs.push({...base,kind,agent:v("f_agent"),product:d.querySelector("select").value,cartons:q,note:v("f_note"),status:"confirmed"})});
+      else if(kind==="issue"){[...$("#lines").children].forEach((d,i)=>{const q=n(d.querySelector("input").value);if(q>0)docs.push({...base,kind,agent:v("f_agent"),product:d.querySelector("select").value,cartons:q,note:v("f_note"),status:"pending"})});
         if(!docs.length)throw"Enter the number of cartons for at least one product."}
       else if(kind==="payment"){const amts={},used={};
         document.querySelectorAll(".pamt").forEach(i=>{if(i.value!=="")amts[i.dataset.c]=n(i.value)});

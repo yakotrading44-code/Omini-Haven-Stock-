@@ -3,7 +3,7 @@
 A phone app for Omni Haven's stock. It tracks cartons from the warehouse to the agents to customers, so the warehouse count, the agents' books and the Omni system can be checked against each other.
 
 - **Frank (warehouse)** records cartons given to agents, returns, stock from Multipro, and weekly counts.
-- **Peter, Deborah and Musah (agents)** view their own book: cartons taken, raised in Omni, and still with them.
+- **Peter, Deborah and Musah (agents)** view their own book (cartons taken, raised in Omni, still with them) and confirm or dispute each delivery.
 - **Nana (manager)** records orders raised in Omni, sees everything, and gets a Monday summary by email.
 
 Everyone opens the same link with their own code, and each person sees only their own book.

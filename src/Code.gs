@@ -9,7 +9,7 @@ var COLS = ['id', 'kind', 'date', 'agent', 'product', 'cartons', 'customer', 'am
 var NUMERIC = { cartons: true, amount: true, omni: true, disputeCartons: true };
 var ROLES = ['manager', 'warehouse', 'agent'];
 // What each role may record. The manager may record anything.
-// Agents only view their book; Frank and Nana record everything (agents already do the same work in the Omni app).
+// Agents only view their book and confirm or dispute deliveries; Frank and Nana record everything else.
 var ROLE_KINDS = { agent: [], warehouse: ['issue', 'ret', 'receive', 'count'] };
 
 function doGet() {
@@ -231,8 +231,8 @@ function addEntries(code, list) {
         if (me.role === 'agent') e.agent = me.name;
       }
       if (e.agent) e.agent = canon_(e.agent);
-      // Deliveries no longer wait for the agent to confirm them.
-      if (e.kind === 'issue' && (!e.status || e.status === 'pending')) e.status = 'confirmed';
+      // Every delivery waits for the agent to confirm it, or to dispute the number.
+      if (e.kind === 'issue' && me.role !== 'manager') e.status = 'pending';
     });
     checkStock_(list);
     checkRaises_(list);
@@ -309,7 +309,7 @@ function notifyIssues_(me, list) {
     var items = byAgent[a];
     var lines = ['Hi ' + first_(a) + ',', '', first_(me.name) + ' recorded these cartons as given to you on ' + items[0].date + ':', ''];
     items.forEach(function (e) { lines.push('  ' + e.cartons + ' x ' + e.product); });
-    lines.push('', 'If these numbers are not what you took, tell Frank or Nana today.');
+    lines.push('', 'Please open the stock book and tap "That\'s right", or "That\'s wrong" if the numbers are not what you took.');
     mail_(emailsFor_(function (p) { return p.name === a; }), 'cartons recorded for you', lines);
   });
 }
@@ -321,8 +321,17 @@ function updateEntry(code, id, patch) {
     var r = findRow_(sh, id);
     if (r > 0) {
       patch = patch || {};
-      if (me.role === 'agent') deny_('your page is for viewing only. Frank and Nana record everything.');
-      if (me.role !== 'manager') deny_('only Nana can change an entry. Delete it and record it again.');
+      if (me.role !== 'manager') {
+        // Agents may only confirm or dispute cartons Frank gave them.
+        var e = entryAt_(sh, r);
+        if (me.role !== 'agent' || e.agent !== me.name || e.kind !== 'issue') deny_('you can\'t change that entry.');
+        var p = {};
+        // Once a delivery is confirmed or disputed, only Nana or Frank can settle it.
+        if (e.status && e.status !== 'pending') deny_('this delivery is already ' + e.status + '.');
+        ['status', 'confirmedAt', 'disputeNote', 'disputeCartons'].forEach(function (k) { if (k in patch) p[k] = patch[k]; });
+        if (p.status !== 'confirmed' && p.status !== 'disputed') deny_('you can\'t change that entry.');
+        patch = p;
+      }
       writeFields_(sh, r, patch);
       if (patch.status === 'disputed') {
         var d = entryAt_(sh, r);

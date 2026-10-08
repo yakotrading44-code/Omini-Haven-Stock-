@@ -29,8 +29,8 @@ G.addEntries('W1', [
   { kind: 'issue', agent: 'Peter Boakye', product: 'OC', cartons: 30, date: '2026-10-05', status: 'pending' },
   { kind: 'issue', agent: 'Deborah', product: 'SPO', cartons: 10, date: '2026-10-05', status: 'pending' }]);
 
-test('deliveries are saved as confirmed, with no confirm step for the agent', () => {
-  assert.ok(G.getData('M1').entries.filter(e => e.kind === 'issue').every(e => e.status === 'confirmed'));
+test('deliveries wait for the agent to confirm them', () => {
+  assert.ok(G.getData('M1').entries.filter(e => e.kind === 'issue').every(e => e.status === 'pending'));
 });
 
 test('privacy: agents see only their own entries, Frank sees no credit', () => {
@@ -40,12 +40,18 @@ test('privacy: agents see only their own entries, Frank sees no credit', () => {
   assert.strictEqual(G.getData('D1').entries.length, 1);
 });
 
-test('roles: agents only view; Frank records stock, not credit or raises', () => {
+test('roles: agents only view and confirm deliveries; Frank records stock, not credit or raises', () => {
   denied(() => G.addEntries('P1', [{ kind: 'credit', customer: 'X', product: 'OC', cartons: 1, date: '2026-10-06' }]), /viewing only/);
   denied(() => G.addEntries('P1', [{ kind: 'raise', product: 'OC', cartons: 1, date: '2026-10-06' }]), /viewing only/);
-  const id = G.getData('P1').entries[0].id;
-  denied(() => G.updateEntry('P1', id, { status: 'disputed' }), /viewing only/);
+  const id = G.getData('P1').entries.find(e => e.kind === 'credit').id;
+  denied(() => G.updateEntry('P1', id, { status: 'confirmed' }), /can't change/);
   denied(() => G.deleteEntry('P1', id), /viewing only/);
+  const dId = G.getData('D1').entries.find(e => e.kind === 'issue').id;
+  G.updateEntry('D1', dId, { status: 'confirmed', cartons: 99 }); // the agent can't change the number
+  const conf = G.getData('D1').entries.find(e => e.id === dId);
+  assert.strictEqual(conf.cartons, 10);
+  assert.strictEqual(conf.status, 'confirmed');
+  denied(() => G.updateEntry('D1', dId, { status: 'disputed' }), /already confirmed/);
   denied(() => G.addEntries('W1', [{ kind: 'credit', agent: 'Peter Boakye', customer: 'X', product: 'OC', cartons: 1 }]), /DENIED/);
   denied(() => G.addEntries('W1', [{ kind: 'raise', agent: 'Peter Boakye', product: 'OC', cartons: 1 }]), /DENIED/);
   denied(() => G.saveConfig('P1', config), /only Nana/);
@@ -66,9 +72,10 @@ test('raise: Nana records raises straight from Omni; customer raises still need 
   G.addEntries('M1', [{ kind: 'raise', agent: 'Peter Boakye', customer: 'Ama', product: 'OC', cartons: 5, date: '2026-10-06' }]);
 });
 
-test('disputes: Frank may only accept the agent number, Nana decides', () => {
-  const id = G.getData('M1').entries.find(e => e.kind === 'issue' && e.agent === 'Peter Boakye').id;
-  G.updateEntry('M1', id, { status: 'disputed', disputeCartons: 28, disputeNote: '2 left behind' });
+test('disputes: agent disputes once, Frank may only accept the agent number, Nana decides', () => {
+  const id = G.getData('P1').entries.find(e => e.kind === 'issue').id;
+  G.updateEntry('P1', id, { status: 'disputed', disputeCartons: 28, disputeNote: '2 left behind' });
+  denied(() => G.updateEntry('P1', id, { status: 'confirmed' }), /already disputed/);
   denied(() => G.resolveDispute('P1', id, 28, ''), /only Nana or Frank/);
   denied(() => G.resolveDispute('W1', id, 29, ''), /only accept/);
   const e = G.resolveDispute('M1', id, 28, 'checked waybill').entries.find(x => x.id === id);
@@ -103,7 +110,7 @@ test('names: spacing and capitals in the Codes tab or rows still reach the right
   G.addEntries('W1', [{ kind: 'issue', agent: 'DEBORAH', product: 'OC', cartons: 3, date: '2026-10-08', status: 'pending' }]);
   const mine = G.getData('D2');
   assert.strictEqual(mine.me.name, 'Deborah');
-  assert.ok(mine.entries.some(e => e.kind === 'issue' && e.status === 'confirmed' && e.agent === 'Deborah' && e.cartons === 3));
+  assert.ok(mine.entries.some(e => e.kind === 'issue' && e.status === 'pending' && e.agent === 'Deborah' && e.cartons === 3));
 });
 
 console.log(`\n${passed} tests passed`);

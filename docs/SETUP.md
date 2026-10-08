@@ -39,11 +39,12 @@ If you used the old app, archive it: **Deploy > Manage deployments > Archive**, 
 
 ## Part 2: The daily routine
 
-Only Frank and Nana enter things. Peter, Deborah and Musah open the app to **view** their own book: what they have taken, what has been raised in Omni, and what is still with them. They can't record or change anything.
+Only Frank and Nana enter things. Peter, Deborah and Musah open the app to **view** their own book (what they have taken, what has been raised in Omni, and what is still with them) and to **confirm** each delivery Frank records.
 
 | Who | When | What they do in the app |
 |---|---|---|
-| Frank | Every time cartons leave | **Give cartons to an agent**: pick the agent, then add every product and how many cartons. It counts straight away; the agent gets an email. |
+| Frank | Every time cartons leave | **Give cartons to an agent**: pick the agent, then add every product and how many cartons. The agent gets an email. |
+| Agent | Same day | Open the app and tap **That's right** on each delivery, or **That's wrong** and enter the number they actually took. |
 | Frank | When cartons come back | **Agent returned cartons**. |
 | Frank | When the Multipro truck arrives | **Received from supplier**, with the invoice or waybill number. |
 | Nana | Daily, from the Omni app | **Raised in Omni** (on the Overview, or on an agent's page): pick the agent, add every product and cartons raised, and the Omni order number if you want. The app refuses more than the agent holds. |
@@ -55,14 +56,17 @@ Past entries are on the **Entries** tab of each page. The **By date** tab shows 
 
 The rule that keeps the books balanced: **cartons taken = raised in Omni + returned + still with the agent**.
 
-## Part 3: When an agent says a number is wrong
+## Part 3: When Frank and an agent disagree
 
-1. **The agent tells Frank or Nana** (call or WhatsApp). There's no button for it in their app.
-2. **Frank checks** the shelf and his paperwork. If he made a mistake, he deletes his entry and records it again with the right number.
-3. **If they still disagree, Nana decides.** She checks the waybill, what the agent still has in the van or store, and Frank's next warehouse count. Then she deletes and re-records the entry if needed.
+1. **The agent flags it.** On the delivery, the agent taps **That's wrong** and enters the number they actually took, plus a short note. Nana and Frank get an email.
+2. **Frank checks first.** He looks at the shelf and his paperwork. If he agrees, he taps **[Agent] is right** on his page. The figure is corrected and everyone is emailed. Frank can only accept the agent's number.
+3. **If Frank doesn't agree, Nana decides.** On her page under **Disputed deliveries**, she taps **Keep** (Frank's number), **Use** (the agent's number), or **Other number** with a reason, after checking the waybill, what the agent still has, and Frank's next count.
+4. **Everyone is told.** The result is saved on the entry, for example "Changed from 10 to 8 by Frank (agreed with Deborah)". A settled delivery can't be disputed again.
+
+Frank's page and Nana's page list every delivery still **waiting for the agent to confirm**.
 
 ## Part 4: Access and security
-- Peter and Deborah each see only their own book, and can only view it. Neither can see the other's cartons, credit or customers.
+- Peter and Deborah each see only their own book, and can only view it and confirm deliveries. Neither can see the other's cartons, credit or customers.
 - Frank sees warehouse stock and deliveries, but not customers' credit.
 - Nana sees everything, can open anyone's page, and is the only one who can add products or agents.
 - **To lock someone out**, change their code on the Codes tab. The old code stops working at once.
