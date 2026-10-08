@@ -1,7 +1,7 @@
 // Checks the server rules in src/Code.gs against an in-memory copy of the Sheet.
 // Run with: node tests/server.test.js
 const assert = require('assert');
-const { makeBook, load, sent } = require('./mock');
+const { makeBook, load, sent, wa, props } = require('./mock');
 
 const config = {
   products: ['OC', 'SPO'], startDate: '2026-09-30', warehouse: 'Frank',
@@ -111,6 +111,18 @@ test('names: spacing and capitals in the Codes tab or rows still reach the right
   const mine = G.getData('D2');
   assert.strictEqual(mine.me.name, 'Deborah');
   assert.ok(mine.entries.some(e => e.kind === 'issue' && e.status === 'pending' && e.agent === 'Deborah' && e.cartons === 3));
+});
+
+test('whatsapp: nothing is sent until set up, then the agent gets the delivery', () => {
+  book.sheets.Codes.rows[0][4] = 'WhatsApp';
+  book.sheets.Codes.rows.forEach(r => { if (r[0] === 'Peter Boakye') r[4] = '024 123 4567'; });
+  G.addEntries('W1', [{ kind: 'issue', agent: 'Peter Boakye', product: 'OC', cartons: 2, date: '2026-10-09' }]);
+  assert.strictEqual(wa.length, 0);
+  props.WA_TOKEN = 't'; props.WA_PHONE_ID = '123';
+  G.addEntries('W1', [{ kind: 'issue', agent: 'Peter Boakye', product: 'OC', cartons: 2, date: '2026-10-09' }, { kind: 'issue', agent: 'Peter Boakye', product: 'SPO', cartons: 1, date: '2026-10-09' }]);
+  assert.strictEqual(wa.length, 1);
+  assert.strictEqual(wa[0].body.to, '233241234567');
+  assert.deepStrictEqual(wa[0].body.template.components[0].parameters.map(p => p.text), ['Peter', '2 x OC, 1 x SPO', '2026-10-09']);
 });
 
 console.log(`\n${passed} tests passed`);

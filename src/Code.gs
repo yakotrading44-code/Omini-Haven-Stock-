@@ -188,9 +188,11 @@ function ensureCodes_(config) {
 // Column D of the Codes tab holds each person's email. A blank email means no emails for that person.
 
 function people_() {
-  return codesSheet_().getDataRange().getDisplayValues().slice(1)
+  var rows = codesSheet_().getDataRange().getDisplayValues();
+  var wa = (rows[0] || []).map(function (h) { return String(h).trim().toLowerCase(); }).indexOf('whatsapp');
+  return rows.slice(1)
     .filter(function (r) { return String(r[0]).trim(); })
-    .map(function (r) { return { name: String(r[0]).trim(), role: String(r[2] || '').trim().toLowerCase(), email: String(r[3] || '').trim() }; });
+    .map(function (r) { return { name: canon_(String(r[0]).trim()), role: String(r[2] || '').trim().toLowerCase(), email: String(r[3] || '').trim(), phone: wa >= 0 ? String(r[wa] || '').trim() : '' }; });
 }
 
 function emailsFor_(test) {
@@ -208,6 +210,51 @@ function mail_(to, subject, lines) {
   var url = appUrl_();
   var body = lines.filter(function (l) { return l !== null; }).join('\n') + (url ? '\n\nOpen the stock book: ' + url : '') + '\n\nOmni Haven Stock Book';
   try { MailApp.sendEmail(to.join(','), 'Omni Haven: ' + subject, body); } catch (err) { console.warn('Email not sent: ' + err); }
+}
+
+// ---- WhatsApp alerts (Meta WhatsApp Cloud API) ----
+// Turned on by setupWhatsApp(); until then nothing is sent. Settings live in Script Properties:
+// WA_TOKEN (access token), WA_PHONE_ID (the sending number's ID), WA_TEMPLATE (approved template name), WA_LANG.
+function waSettings_() {
+  var p = PropertiesService.getScriptProperties();
+  var s = { token: p.getProperty('WA_TOKEN'), phoneId: p.getProperty('WA_PHONE_ID'), template: p.getProperty('WA_TEMPLATE') || 'delivery_alert', lang: p.getProperty('WA_LANG') || 'en' };
+  return s.token && s.phoneId ? s : null;
+}
+
+// Ghana numbers: 024 123 4567 or +233 24 123 4567 both become 233241234567.
+function waNumber_(raw) {
+  var d = String(raw || '').replace(/\D/g, '');
+  if (/^0\d{9}$/.test(d)) d = '233' + d.slice(1);
+  return d.length >= 11 ? d : '';
+}
+
+// Sends the approved template with its {{1}}, {{2}}, ... filled in. Never stops a save if it fails.
+function whatsapp_(phone, params) {
+  var s = waSettings_(), to = waNumber_(phone);
+  if (!s || !to) return false;
+  try {
+    var res = UrlFetchApp.fetch('https://graph.facebook.com/v21.0/' + s.phoneId + '/messages', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { Authorization: 'Bearer ' + s.token },
+      payload: JSON.stringify({ messaging_product: 'whatsapp', to: to, type: 'template',
+        template: { name: s.template, language: { code: s.lang },
+          components: [{ type: 'body', parameters: params.map(function (t) { return { type: 'text', text: String(t) }; }) }] } })
+    });
+    if (res.getResponseCode() >= 300) { console.warn('WhatsApp not sent to ' + to + ': ' + res.getContentText()); return false; }
+    return true;
+  } catch (err) { console.warn('WhatsApp not sent: ' + err); return false; }
+}
+
+// Run once from the Apps Script editor, after filling in the Script Properties.
+// It adds a WhatsApp column to the Codes tab if missing, asks for permission to send, and sends Nana a test message.
+function setupWhatsApp() {
+  var sh = codesSheet_();
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (h) { return String(h).trim().toLowerCase(); });
+  if (head.indexOf('whatsapp') < 0) { sh.insertColumnBefore(5); sh.getRange(1, 5).setValue('WhatsApp'); sh.getRange(2, 5, Math.max(sh.getLastRow() - 1, 1), 1).setNumberFormat('@'); }
+  if (!waSettings_()) throw new Error('Add WA_TOKEN and WA_PHONE_ID under Project Settings > Script Properties first.');
+  var nana = people_().filter(function (p) { return p.role === 'manager' && p.phone; })[0];
+  if (!nana) throw new Error('Type your WhatsApp number in the new WhatsApp column on the Codes tab, then run this again.');
+  if (!whatsapp_(nana.phone, [first_(nana.name), '1 x TEST', 'today'])) throw new Error('Meta refused the message. Open Executions to see why.');
 }
 
 function first_(name) { return String(name || '').split(' ')[0]; }
@@ -311,6 +358,8 @@ function notifyIssues_(me, list) {
     items.forEach(function (e) { lines.push('  ' + e.cartons + ' x ' + e.product); });
     lines.push('', 'Please open the stock book and tap "That\'s right", or "That\'s wrong" if the numbers are not what you took.');
     mail_(emailsFor_(function (p) { return p.name === a; }), 'cartons recorded for you', lines);
+    var list = items.map(function (e) { return e.cartons + ' x ' + e.product; }).join(', ');
+    people_().filter(function (p) { return p.name === a && p.phone; }).forEach(function (p) { whatsapp_(p.phone, [first_(a), list, items[0].date]); });
   });
 }
 

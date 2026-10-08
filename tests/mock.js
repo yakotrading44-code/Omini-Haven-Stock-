@@ -20,9 +20,9 @@ function makeBook(tabs){
   const sheets={};for(const k in tabs)sheets[k]=new Sheet(k,tabs[k]);
   return {sheets,getSheetByName:n=>sheets[n]||null,insertSheet:n=>(sheets[n]=new Sheet(n,[])),getName:()=>'Omni Haven Stock Book',getUrl:()=>'https://docs.google.com/spreadsheets/d/x',getSpreadsheetTimeZone:()=>'Africa/Accra'};
 }
-const sent=[];function load(book){
+const sent=[],wa=[],props={};function load(book){
   const ctx={SpreadsheetApp:{getActiveSpreadsheet:()=>book},Utilities:{getUuid:()=>crypto.randomUUID(),formatDate:(d)=>d.toISOString().slice(0,10)},
-    LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},HtmlService:{},console,MailApp:{sendEmail:(to,sub,body)=>sent.push({to,sub,body})},ScriptApp:{getService:()=>({getUrl:()=>'https://script.google.com/macros/s/X/exec'})}};
+    LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},HtmlService:{},console,MailApp:{sendEmail:(to,sub,body)=>sent.push({to,sub,body})},PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k]||null})},UrlFetchApp:{fetch:(url,opt)=>{wa.push({url,body:JSON.parse(opt.payload)});return {getResponseCode:()=>200,getContentText:()=>'{}'}}},ScriptApp:{getService:()=>({getUrl:()=>'https://script.google.com/macros/s/X/exec'})}};
   vm.createContext(ctx);vm.runInContext(fs.readFileSync(require('path').join(__dirname,'..','src','Code.gs'),'utf8'),ctx);return ctx;
 }
-module.exports={makeBook,load,sent};
+module.exports={makeBook,load,sent,wa,props};

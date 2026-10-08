@@ -101,6 +101,22 @@ From then on:
 
 To update by hand instead: paste in the new code and click **Save**. Then go to **Deploy > Manage deployments**, click the pencil, set **Version: New version**, and click **Deploy**.
 
+## WhatsApp alerts to agents (optional)
+
+When Frank or Nana records cartons given to an agent, the app can send that agent a WhatsApp message asking them to check and confirm. It uses the official WhatsApp Business (Cloud) API from Meta, which charges a small fee per message.
+
+1. Go to business.facebook.com and create a Meta Business account, then open developers.facebook.com, create an app, and add the WhatsApp product.
+2. Add a phone number that is not already used on normal WhatsApp. Note the **Phone number ID** shown there.
+3. Create a permanent access token (Business settings, System users, Generate token, with whatsapp_business_messaging permission).
+4. In WhatsApp Manager, create a message template named `delivery_alert` (category Utility, language English) with this body:
+   `Hi {{1}}, Frank has given you {{2}} on {{3}}. Please open the Omni Haven stock book and confirm.`
+   Wait for Meta to approve it.
+5. In the Apps Script editor, open Project settings, Script properties, and add `WA_TOKEN` (the token) and `WA_PHONE_ID` (the phone number ID).
+6. In the editor, choose the function `setupWhatsApp` and press Run. Allow the new permission when Google asks. This adds a **WhatsApp** column to the Codes tab and sends a test message to Nana's number if it is filled in.
+7. Type each agent's number in the WhatsApp column (for example 0241234567).
+
+If a message fails to send, the entry is still saved and the agent still gets the email.
+
 ## If entries don't show up in the Sheet
 Every saved entry goes to the **Entries** tab of the Sheet you opened Apps Script from. Nana's page shows that Sheet's name and a link at the bottom.
 - Make sure everyone uses the `/exec` link, not the Claude link.
