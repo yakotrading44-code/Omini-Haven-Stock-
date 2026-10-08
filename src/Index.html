@@ -279,7 +279,7 @@ function renderAgent(a){
   </div>
   ${b.toRaiseTotal?`<div class="note">Customers have paid for ${b.toRaiseTotal} carton${b.toRaiseTotal>1?"s":""} you haven't raised yet: ${b.toRaise.map(o=>`${esc(o.customer)} ${o.left} × ${esc(o.product)}`).join(", ")}. Raise them in Omni, then tap <strong>Raised order in Omni</strong>.</div>`:""}
   ${b.inHand<0?`<div class="note bad">Your credit records add up to ${-b.inHand} more cartons than you are holding. Check for a credit you already raised, or an order you raised but didn't record here.</div>`:""}
-  ${b.pending.length?`<div class="note">Frank has recorded ${b.pending.length} delivery${b.pending.length>1?"ies":"y"} to you. Please confirm ${b.pending.length>1?"them":"it"} below.</div>`:""}
+  ${b.pending.length?`<div class="note">Frank has recorded ${b.pending.length} deliver${b.pending.length>1?"ies":"y"} to you. Please confirm ${b.pending.length>1?"them":"it"} below.</div>`:""}
   </section>`;
   h+=`<section><h2>Record</h2><div class="actions">
     <button class="btn" data-form="credit">Gave cartons on credit<small>customer took cartons, will pay later</small></button>
@@ -314,6 +314,12 @@ function disputesHtml(asMgr){
     <p class="muted small">${asMgr?"Check the waybill, the agent's van and the warehouse count, then decide. Everyone is told the result.":"If you agree with the agent, accept their number. If not, leave it and Nana will decide."}</p></section>`;
 }
 
+// Deliveries Frank recorded that the agent hasn't confirmed yet, so Frank and Nana can chase them.
+function waitingHtml(){
+  const list=entries.filter(e=>e.kind==="issue"&&e.status==="pending").sort((x,y)=>x.date<y.date?-1:1);
+  if(!list.length)return "";
+  return `<section><h3>Waiting for the agent to confirm</h3><div class="list">${list.map(e=>`<div class="item"><div class="main"><strong>${esc(e.agent)}: ${n(e.cartons)} × ${esc(e.product)}</strong><span class="muted small">${fmtDate(e.date)} · recorded by ${esc(e.by||"Frank")}</span></div><span class="pill warn">Not confirmed</span></div>`).join("")}</div><p class="muted small">The agent sees these on their own page and taps That's right or That's wrong.</p></section>`;
+}
 function renderFrank(){
   const allRows=cfg.products.map(warehouseRow),rows=allRows.filter(r=>r.count||r.nr||r.iss||r.recv||r.ret),idle=allRows.filter(r=>!rows.includes(r)).map(r=>r.p);
   const uncounted=rows.filter(r=>!r.count).length;
@@ -327,6 +333,7 @@ function renderFrank(){
   </div>
   ${uncounted?`<div class="note">${!rows.length?"Stock available needs a starting point. Count each product once with <strong>Count the warehouse</strong>; after that, every carton in and out keeps it up to date.":uncounted+" products have never been counted, so their stock available is unknown."}</div>`:""}
   </section>`;
+  h+=waitingHtml();
   h+=`<section><h3>Stock available now</h3><div class="tbl"><table><thead><tr><th>Product</th><th>Last count</th><th>In since</th><th>Out since</th><th>Available</th><th>Agents haven't raised</th></tr></thead><tbody>
     ${rows.map(r=>`<tr><td>${esc(r.p)}<div class="muted small">${esc((cfg.names||{})[r.p]||"")}</div></td><td>${r.count?`${n(r.count.cartons)} <span class="muted small">${fmtDate(r.count.date)}</span>`:`<span class="pill warn">Not counted</span>`}</td>
       <td>${r.count?r.recv+r.ret:"—"}</td><td>${r.count?r.iss:"—"}</td><td><strong>${r.avail==null?"—":r.avail<0?`<span class="pill bad">${r.avail}</span>`:r.avail}</strong></td><td>${r.nr}</td></tr>`).join("")}
@@ -360,6 +367,7 @@ function renderManager(){
   ${unexpl.length?`<div class="note bad">At the last count, ${unexpl.map(r=>`${esc(r.p)} is off by ${r.unexplained}`).join(", ")} after allowing for cartons not raised. Those cartons are missing or an entry was skipped.</div>`:""}
   </section>`;
   h+=disputesHtml(true);
+  h+=waitingHtml();
   h+=`<section><h3>Each agent</h3><div class="tbl"><table><thead><tr><th>Agent</th><th>Taken</th><th>Raised</th><th>Returned</th><th>Not raised</th><th>On credit</th><th>Paid, not raised</th><th>Unsold</th><th>Oldest credit</th></tr></thead><tbody>
     ${books.map(([a,b])=>{const old=b.customers.find(c=>c.owed>0);return `<tr><td>${esc(a)}${cfg.agents.find(x=>x.name===a&&!x.active)?` <span class="pill plain">former</span>`:""}</td><td>${b.taken}</td><td>${b.raised}</td><td>${b.returned}</td><td><strong>${b.withMe}</strong></td><td>${b.onCredit}</td><td>${b.toRaiseTotal?`<span class="pill warn">${b.toRaiseTotal}</span>`:0}</td><td>${b.inHand<0?`<span class="pill bad">${b.inHand}</span>`:b.inHand}</td><td>${old?agePill(old.days):"—"}</td></tr>`}).join("")}
     </tbody></table></div></section>`;

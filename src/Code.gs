@@ -73,12 +73,22 @@ function whoIs_(code) {
     if (ROLES.indexOf(role) < 0) role = 'agent';
     if (role === 'agent') {
       var cfg = config_();
+      name = canon_(name, cfg);
       var a = ((cfg && cfg.agents) || []).filter(function (x) { return x.name === name; })[0];
       if (a && a.active === false) throw new Error('ACCESS: ' + name + ' has been retired. Ask Nana.');
     }
     return { name: name, role: role };
   }
   throw new Error('ACCESS: wrong code.');
+}
+
+// Agent names typed in different places (Codes tab, Settings, imported rows) may differ in spacing or capitals.
+// Every name is mapped to the spelling on the agent list, so "deborah " and "Deborah" are the same book.
+function canon_(name, cfg) {
+  var key = String(name || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!key) return '';
+  var a = (((cfg || config_()) || {}).agents || []).filter(function (x) { return String(x.name).replace(/\s+/g, ' ').trim().toLowerCase() === key; })[0];
+  return a ? a.name : String(name).replace(/\s+/g, ' ').trim();
 }
 
 // Agents see only their own book. Frank sees stock movements but not customers' credit.
@@ -115,8 +125,9 @@ function headIndex_(head) {
 function readAll_(me) {
   var values = entriesSheet_().getDataRange().getValues();
   var idx = headIndex_(values.shift() || COLS);
+  var cfg = config_();
   var entries = values.filter(function (r) { return r[idx.id] !== ''; })
-    .map(function (r) { return toEntry_(r, idx); })
+    .map(function (r) { var e = toEntry_(r, idx); if (e.agent) e.agent = canon_(e.agent, cfg); return e; })
     .filter(function (e) { return visible_(me, e); });
   var out = { entries: entries, config: config_(), me: me };
   if (me.role === 'manager') out.book = { name: book_().getName(), url: book_().getUrl() };
@@ -217,6 +228,7 @@ function addEntries(code, list) {
         if (ROLE_KINDS[me.role].indexOf(e.kind) < 0) deny_('you can\'t record that from your book.');
         if (me.role === 'agent') e.agent = me.name;
       }
+      if (e.agent) e.agent = canon_(e.agent);
     });
     checkStock_(list);
     checkRaises_(list);

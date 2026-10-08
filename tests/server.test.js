@@ -88,4 +88,12 @@ test('clear all: only Nana, needs CLEAR, keeps a backup tab', () => {
   assert.strictEqual(Object.keys(book.sheets).filter(n => /^Backup /.test(n)).length, 2);
 });
 
+test('names: spacing and capitals in the Codes tab or rows still reach the right book', () => {
+  book.sheets.Codes.rows.push(['deborah ', 'D2', 'agent', '']);
+  G.addEntries('W1', [{ kind: 'issue', agent: 'DEBORAH', product: 'OC', cartons: 3, date: '2026-10-08', status: 'pending' }]);
+  const mine = G.getData('D2');
+  assert.strictEqual(mine.me.name, 'Deborah');
+  assert.ok(mine.entries.some(e => e.kind === 'issue' && e.status === 'pending' && e.agent === 'Deborah' && e.cartons === 3));
+});
+
 console.log(`\n${passed} tests passed`);
