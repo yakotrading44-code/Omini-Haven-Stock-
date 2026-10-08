@@ -263,43 +263,42 @@ function stat(k,v,s,cls=""){return `<div class="stat ${cls}"><span class="k">${k
 function agePill(d){return d>30?`<span class="pill bad">${d} days</span>`:d>14?`<span class="pill warn">${d} days</span>`:`<span class="pill plain">${d} days</span>`}
 
 function renderAgent(a){
-  const b=agentBook(a);
+  const b=agentBook(a),mgr=isMgr();
   const first=a.split(" ")[0];
   let h=`<section><h2>${esc(first)}'s book</h2>
   <div class="strip">
-    ${stat("Taken from warehouse",b.taken,"all cartons Frank gave you")}
-    ${stat("Raised in Omni",b.raised,"orders you've raised")}
+    ${stat("Taken from warehouse",b.taken,"all cartons Frank gave "+(mgr?first:"you"))}
+    ${stat("Raised in Omni",b.raised,"orders raised in Omni")}
     ${stat("Returned",b.returned,"cartons brought back")}
-    ${stat("Still with you",b.withMe,"not yet raised","hl")}
+    ${stat(mgr?"Still with "+first:"Still with you",b.withMe,"not yet raised in Omni","hl")}
   </div>
-  <div class="strip">
-    ${stat("Out on credit",b.onCredit,b.customers.filter(c=>c.owed>0).length+" customers owe you")}
-    ${stat("Unsold in hand",b.inHand,"should be in your van or store",b.inHand<0?"bad":"")}
-    ${stat("Paid, not raised",b.toRaiseTotal,"raise these in Omni",b.toRaiseTotal?"hl":"")}
-  </div>
-  ${b.toRaiseTotal?`<div class="note">Customers have paid for ${b.toRaiseTotal} carton${b.toRaiseTotal>1?"s":""} you haven't raised yet: ${b.toRaise.map(o=>`${esc(o.customer)} ${o.left} × ${esc(o.product)}`).join(", ")}. Raise them in Omni, then tap <strong>Raised order in Omni</strong>.</div>`:""}
-  ${b.inHand<0?`<div class="note bad">Your credit records add up to ${-b.inHand} more cartons than you are holding. Check for a credit you already raised, or an order you raised but didn't record here.</div>`:""}
-  ${b.pending.length?`<div class="note">Frank has recorded ${b.pending.length} deliver${b.pending.length>1?"ies":"y"} to you. Please confirm ${b.pending.length>1?"them":"it"} below.</div>`:""}
+  ${b.onCredit||b.toRaiseTotal?`<div class="strip">
+    ${stat("Out on credit",b.onCredit,b.customers.filter(c=>c.owed>0).length+" customers owe")}
+    ${stat("Unsold in hand",b.inHand,"not on credit",b.inHand<0?"bad":"")}
+    ${stat("Paid, not raised",b.toRaiseTotal,"waiting to be raised",b.toRaiseTotal?"hl":"")}
+  </div>`:""}
+  ${mgr?"":`<p class="muted small">Frank and Nana record everything here. This page shows what you have taken and what is still with you. If a number looks wrong, tell Frank or Nana.</p>`}
   </section>`;
-  h+=`<section><h2>Record</h2><div class="actions">
-    <button class="btn" data-form="credit">Gave cartons on credit<small>customer took cartons, will pay later</small></button>
-    <button class="btn" data-form="payment">Customer paid<small>pick from customers who owe you</small></button>
-    <button class="btn alt" data-form="raise">Raised order in Omni<small>only for cartons already paid for</small></button>
+  if(mgr)h+=`<section><h2>Record for ${esc(first)}</h2><div class="actions">
+    <button class="btn" data-form="mraise">Raised in Omni<small>${esc(first)}'s orders, from the Omni app</small></button>
+    <button class="btn alt" data-form="credit">Gave cartons on credit<small>optional: track a customer who owes</small></button>
+    <button class="btn alt" data-form="payment">Customer paid<small>optional: clears that customer's credit</small></button>
   </div></section>`;
-  if(b.pending.length||b.disputed.length){
-    h+=`<section><h3>Cartons Frank gave you</h3><div class="list">${[...b.pending,...b.disputed].map(e=>`
+  if(b.disputed.length){
+    h+=`<section><h3>Disputed deliveries</h3><div class="list">${[...b.pending,...b.disputed].map(e=>`
       <div class="item"><div class="main"><strong>${n(e.cartons)} × ${esc(e.product)}</strong><span class="muted small">${fmtDate(e.date)}${e.note?" · "+esc(e.note):""}</span></div>
-      <div class="row">${e.status==="disputed"?`<span class="pill bad">You said ${e.disputeCartons!=null?n(e.disputeCartons):"it's wrong"}. Waiting for Frank or Nana</span>`:
-        `<button class="btn slim" data-act="confirm" data-id="${e.id}">That's right</button><button class="btn slim alt" data-act="dispute" data-id="${e.id}">That's wrong</button>`}</div></div>`).join("")}</div></section>`;
+      <div class="row">${e.status==="disputed"?`<span class="pill bad">Disputed: ${e.disputeCartons!=null?n(e.disputeCartons):"wrong"}. Waiting for Nana</span>`:
+        ""}</div></div>`).join("")}</div></section>`;
   }
   const owing=b.customers.filter(c=>c.owed>0);
-  h+=`<section><h3>Customers who owe you</h3>${owing.length?`<div class="tbl"><table><thead><tr><th>Customer</th><th>Cartons owed</th><th>Amount owed</th><th>Oldest</th></tr></thead><tbody>
+  if(owing.length||mgr)h+=`<section><h3>Customers who owe</h3>${owing.length?`<div class="tbl"><table><thead><tr><th>Customer</th><th>Cartons owed</th><th>Amount owed</th><th>Oldest</th></tr></thead><tbody>
     ${owing.map(c=>`<tr><td>${esc(c.name)}<div class="muted small">${esc(c.products.join(", "))}</div></td><td>${c.owed}</td><td>${c.amt>0?cedi(c.amt):"—"}</td><td>${agePill(c.days)}</td></tr>`).join("")}
-    </tbody></table></div>`:`<div class="empty">No credit recorded yet. When a customer takes cartons on credit, tap <strong>Gave cartons on credit</strong>. If customers already owe you, record each of them once so your book balances.</div>`}</section>`;
-  h+=`<section><h3>By product</h3><div class="tbl"><table><thead><tr><th>Product</th><th>Taken</th><th>Raised</th><th>Returned</th><th>On credit</th><th>In hand</th></tr></thead><tbody>
+    </tbody></table></div>`:`<div class="empty">No credit recorded. Recording credit is optional.</div>`}</section>`;
+  const cr=Object.values(b.products).some(P=>P.credit||P.paidNR);
+  h+=`<section><h3>By product</h3><div class="tbl"><table><thead><tr><th>Product</th><th>Taken</th><th>Raised</th><th>Returned</th>${cr?"<th>On credit</th><th>In hand</th>":"<th>Still with "+(mgr?esc(first):"you")+"</th>"}</tr></thead><tbody>
     ${Object.entries(b.products).filter(([,P])=>P.taken||P.raised||P.returned||P.credit).map(([p,P])=>{const ih=P.taken-P.raised-P.returned-P.credit-(P.paidNR||0);
-      return `<tr><td>${esc(p)}</td><td>${P.taken}</td><td>${P.raised}</td><td>${P.returned}</td><td>${P.credit}</td><td>${ih<0?`<span class="pill bad">${ih}</span>`:ih}</td></tr>`}).join("")||`<tr><td colspan="6" class="muted">Nothing yet</td></tr>`}
-    </tbody><tfoot><tr><td>Total</td><td>${b.taken}</td><td>${b.raised}</td><td>${b.returned}</td><td>${b.onCredit}</td><td>${b.inHand}</td></tr></tfoot></table></div></section>`;
+      return `<tr><td>${esc(p)}</td><td>${P.taken}</td><td>${P.raised}</td><td>${P.returned}</td>${cr?`<td>${P.credit}</td>`:""}<td><strong>${ih<0?`<span class="pill bad">${ih}</span>`:ih}</strong></td></tr>`}).join("")||`<tr><td colspan="6" class="muted">Nothing yet</td></tr>`}
+    </tbody><tfoot><tr><td>Total</td><td>${b.taken}</td><td>${b.raised}</td><td>${b.returned}</td>${cr?`<td>${b.onCredit}</td>`:""}<td>${b.inHand}</td></tr></tfoot></table></div></section>`;
   main.innerHTML=h;
 }
 
@@ -333,7 +332,6 @@ function renderFrank(){
   </div>
   ${uncounted?`<div class="note">${!rows.length?"Stock available needs a starting point. Count each product once with <strong>Count the warehouse</strong>; after that, every carton in and out keeps it up to date.":uncounted+" products have never been counted, so their stock available is unknown."}</div>`:""}
   </section>`;
-  h+=waitingHtml();
   h+=`<section><h3>Stock available now</h3><div class="tbl"><table><thead><tr><th>Product</th><th>Last count</th><th>In since</th><th>Out since</th><th>Available</th><th>Agents haven't raised</th></tr></thead><tbody>
     ${rows.map(r=>`<tr><td>${esc(r.p)}<div class="muted small">${esc((cfg.names||{})[r.p]||"")}</div></td><td>${r.count?`${n(r.count.cartons)} <span class="muted small">${fmtDate(r.count.date)}</span>`:`<span class="pill warn">Not counted</span>`}</td>
       <td>${r.count?r.recv+r.ret:"—"}</td><td>${r.count?r.iss:"—"}</td><td><strong>${r.avail==null?"—":r.avail<0?`<span class="pill bad">${r.avail}</span>`:r.avail}</strong></td><td>${r.nr}</td></tr>`).join("")}
@@ -367,7 +365,6 @@ function renderManager(){
   ${unexpl.length?`<div class="note bad">At the last count, ${unexpl.map(r=>`${esc(r.p)} is off by ${r.unexplained}`).join(", ")} after allowing for cartons not raised. Those cartons are missing or an entry was skipped.</div>`:""}
   </section>`;
   h+=disputesHtml(true);
-  h+=waitingHtml();
   h+=`<section><h3>Each agent</h3><div class="tbl"><table><thead><tr><th>Agent</th><th>Taken</th><th>Raised</th><th>Returned</th><th>Not raised</th><th>On credit</th><th>Paid, not raised</th><th>Unsold</th><th>Oldest credit</th></tr></thead><tbody>
     ${books.map(([a,b])=>{const old=b.customers.find(c=>c.owed>0);return `<tr><td>${esc(a)}${cfg.agents.find(x=>x.name===a&&!x.active)?` <span class="pill plain">former</span>`:""}</td><td>${b.taken}</td><td>${b.raised}</td><td>${b.returned}</td><td><strong>${b.withMe}</strong></td><td>${b.onCredit}</td><td>${b.toRaiseTotal?`<span class="pill warn">${b.toRaiseTotal}</span>`:0}</td><td>${b.inHand<0?`<span class="pill bad">${b.inHand}</span>`:b.inHand}</td><td>${old?agePill(old.days):"—"}</td></tr>`}).join("")}
     </tbody></table></div></section>`;
@@ -376,6 +373,7 @@ function renderManager(){
       <td>${r.unexplained==null?"—":r.unexplained===0?`<span class="pill good">Matches</span>`:`<span class="pill bad">Off by ${r.unexplained}</span>`}</td></tr>`).join("")}
     </tbody></table></div><p class="muted small">"Last check" compares Frank's count with the Omni figure he noted that day, after allowing for cartons not raised. It should read Matches.</p></section>`;
   h+=weekTable("Weekly movement",addDays(weekOf,6));
+  h+=`<section><h3>Record</h3><div class="actions"><button class="btn" data-form="mraise">Raised in Omni<small>an agent's orders, from the Omni app</small></button></div></section>`;
   h+=`<section><h3>Products and agents</h3><div class="actions"><button class="btn alt" data-form="product">Add a product</button><button class="btn alt" data-form="agent">Add or retire an agent</button></div></section>`;
   h+=`<section><h3>Start fresh</h3><p class="muted small">Removes every entry from the app, for example at the start of a new month. A copy is kept in the Sheet first.</p><div class="actions"><button class="btn alt" data-form="clear">Clear all entries</button></div></section>`;
   if(bookInfo)h+=`<p class="muted small">Every entry is saved to the Google Sheet <a href="${esc(bookInfo.url)}" target="_blank" rel="noopener">${esc(bookInfo.name)}</a>, on the Entries tab. People's codes are on its Codes tab.</p>`;
@@ -443,12 +441,14 @@ function openForm(kind){
   else if(kind==="receive"){body=`<div class="grid2">${prod()}${qty}</div><div class="grid2">${date}<label>Supplier / waybill (optional)<input id="f_note"></label></div>`}
   else if(kind==="count"){body=`${prod()}<div class="grid2"><label>Cartons counted<input type="number" id="f_cartons" inputmode="numeric" min="0" step="1"></label><label>Omni shows (optional)<input type="number" id="f_omni" inputmode="numeric" step="1"></label></div>${date}<p class="muted small">Count at the end of the day, after the last carton has gone out.</p>`}
   else if(kind==="product"){titleTxt="Add a product";body=`<label>Carton code<input id="f_code" placeholder="e.g. CF 500G"></label>`}
+  else if(kind==="mraise"){titleTxt="Raised in Omni";const isA=activeAgents().includes(role);
+    body=`<div class="grid2">${isA?`<input type="hidden" id="f_agent" value="${esc(role)}"><label>Agent<input value="${esc(role)}" disabled></label>`:agentSel}${date}</div><div class="lines" id="lines"></div><button type="button" class="link" id="addLine">+ Add another product</button><label>Omni order number (optional)<input id="f_order"></label><p class="muted small">Copy what the agent raised in the Omni app. The app won't allow more than the agent is holding.</p>`}
   else if(kind==="clear"){titleTxt="Clear all entries";body=`<p>This removes all ${allEntries.length} entries for everyone: deliveries, credit, payments, raised orders and counts. Products, agents and codes stay.</p><p class="muted small">A full copy is saved first on a new <strong>Backup</strong> tab in the Sheet, so you can look back or copy rows back if needed.</p><label>Type CLEAR to confirm<input id="f_confirm" autocomplete="off" autocapitalize="characters"></label>`}
   else if(kind==="agent"){titleTxt="Agents";body=`<div class="list">${cfg.agents.map((a,i)=>`<div class="item"><span>${esc(a.name)}</span><button type="button" class="link" data-toggle="${i}">${a.active?"Retire":"Bring back"}</button></div>`).join("")}</div><label>New agent's name<input id="f_newagent"></label>`}
   c.innerHTML=`<form id="theForm" class="lines" novalidate><h2>${esc(titleTxt)}</h2>${body}<div class="err" id="f_err"></div><div class="formbar"><button type="button" class="btn alt slim" id="cancel">Cancel</button><button class="btn slim" type="submit" id="save">Save</button></div></form>`;
   $("#sheet").hidden=false;
   if(kind==="clear")$("#save").textContent="Clear everything";
-  if(kind==="issue"){const add=()=>{const d=document.createElement("div");d.className="line";const i=$("#lines").children.length;
+  if(kind==="issue"||kind==="mraise"){const add=()=>{const d=document.createElement("div");d.className="line";const i=$("#lines").children.length;
       d.innerHTML=`<label>Product<select id="l_p${i}">${opt(cfg.products,null,pname)}</select></label><label>Cartons<input type="number" id="l_q${i}" inputmode="numeric" min="1" step="1"></label><button type="button" class="x" aria-label="Remove">×</button>`;
       d.querySelector(".x").onclick=()=>{if($("#lines").children.length>1)d.remove()};$("#lines").appendChild(d)};
     add();$("#addLine").onclick=add}
@@ -465,7 +465,13 @@ function openForm(kind){
     try{
       const base={date:v("f_date")||today(),by:who?who.name:role,uid:me||null,createdAt:new Date().toISOString()};
       const docs=[];
-      if(kind==="issue"){[...$("#lines").children].forEach((d,i)=>{const q=n(d.querySelector("input").value);if(q>0)docs.push({...base,kind,agent:v("f_agent"),product:d.querySelector("select").value,cartons:q,note:v("f_note"),status:"pending"})});
+      if(kind==="mraise"){const a=v("f_agent"),b=agentBook(a),want={};
+        [...$("#lines").children].forEach(d=>{const q=n(d.querySelector("input").value),p=d.querySelector("select").value;if(q>0)want[p]=(want[p]||0)+q});
+        if(!Object.keys(want).length)throw"Enter the number of cartons for at least one product.";
+        for(const p in want){const h=b.handFor(p);if(want[p]>h)throw`${a.split(" ")[0]} only has ${Math.max(h,0)} × ${p}, not ${want[p]}. Check the number, or record Frank's delivery first.`}
+        Object.entries(want).forEach(([p,q])=>docs.push({...base,kind:"raise",agent:a,product:p,cartons:q,orderNo:v("f_order")}));
+      }
+      else if(kind==="issue"){[...$("#lines").children].forEach((d,i)=>{const q=n(d.querySelector("input").value);if(q>0)docs.push({...base,kind,agent:v("f_agent"),product:d.querySelector("select").value,cartons:q,note:v("f_note"),status:"confirmed"})});
         if(!docs.length)throw"Enter the number of cartons for at least one product."}
       else if(kind==="payment"){const amts={},used={};
         document.querySelectorAll(".pamt").forEach(i=>{if(i.value!=="")amts[i.dataset.c]=n(i.value)});

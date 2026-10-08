@@ -9,7 +9,8 @@ var COLS = ['id', 'kind', 'date', 'agent', 'product', 'cartons', 'customer', 'am
 var NUMERIC = { cartons: true, amount: true, omni: true, disputeCartons: true };
 var ROLES = ['manager', 'warehouse', 'agent'];
 // What each role may record. The manager may record anything.
-var ROLE_KINDS = { agent: ['credit', 'payment', 'raise'], warehouse: ['issue', 'ret', 'receive', 'count'] };
+// Agents only view their book; Frank and Nana record everything (agents already do the same work in the Omni app).
+var ROLE_KINDS = { agent: [], warehouse: ['issue', 'ret', 'receive', 'count'] };
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
@@ -225,10 +226,13 @@ function addEntries(code, list) {
     list = list || [];
     list.forEach(function (e) {
       if (me.role !== 'manager') {
+        if (me.role === 'agent') deny_('your page is for viewing only. Frank and Nana record everything.');
         if (ROLE_KINDS[me.role].indexOf(e.kind) < 0) deny_('you can\'t record that from your book.');
         if (me.role === 'agent') e.agent = me.name;
       }
       if (e.agent) e.agent = canon_(e.agent);
+      // Deliveries no longer wait for the agent to confirm them.
+      if (e.kind === 'issue' && (!e.status || e.status === 'pending')) e.status = 'confirmed';
     });
     checkStock_(list);
     checkRaises_(list);
@@ -291,6 +295,7 @@ function checkRaises_(list) {
   // payments in this same save count too
   list.forEach(function (e) { if (e.kind === 'payment' && e.customer) { var k = key(e.customer, e.product, e.agent); left[k] = (left[k] || 0) + (Number(e.cartons) || 0); } });
   raises.forEach(function (e) {
+    if (!e.customer) return; // a direct raise by Nana; checkStock_ makes sure the agent holds the cartons
     var k = key(e.customer, e.product, e.agent);
     if (!e.customer || (Number(e.cartons) || 0) > (left[k] || 0)) deny_('record "Customer paid" before raising the order for ' + (e.customer || 'this customer') + '.');
     left[k] -= Number(e.cartons) || 0;
@@ -304,7 +309,7 @@ function notifyIssues_(me, list) {
     var items = byAgent[a];
     var lines = ['Hi ' + first_(a) + ',', '', first_(me.name) + ' recorded these cartons as given to you on ' + items[0].date + ':', ''];
     items.forEach(function (e) { lines.push('  ' + e.cartons + ' x ' + e.product); });
-    lines.push('', 'Please open the stock book and tap "That\'s right", or "That\'s wrong" if the numbers are not what you took.');
+    lines.push('', 'If these numbers are not what you took, tell Frank or Nana today.');
     mail_(emailsFor_(function (p) { return p.name === a; }), 'cartons recorded for you', lines);
   });
 }
@@ -316,17 +321,8 @@ function updateEntry(code, id, patch) {
     var r = findRow_(sh, id);
     if (r > 0) {
       patch = patch || {};
-      if (me.role !== 'manager') {
-        // Agents may only confirm or dispute cartons Frank gave them.
-        var e = entryAt_(sh, r);
-        if (me.role !== 'agent' || e.agent !== me.name || e.kind !== 'issue') deny_('you can\'t change that entry.');
-        var p = {};
-        // Once a delivery is confirmed or disputed, only Nana or Frank can settle it.
-        if (e.status && e.status !== 'pending') deny_('this delivery is already ' + e.status + '.');
-        ['status', 'confirmedAt', 'disputeNote', 'disputeCartons'].forEach(function (k) { if (k in patch) p[k] = patch[k]; });
-        if (p.status !== 'confirmed' && p.status !== 'disputed') deny_('you can\'t change that entry.');
-        patch = p;
-      }
+      if (me.role === 'agent') deny_('your page is for viewing only. Frank and Nana record everything.');
+      if (me.role !== 'manager') deny_('only Nana can change an entry. Delete it and record it again.');
       writeFields_(sh, r, patch);
       if (patch.status === 'disputed') {
         var d = entryAt_(sh, r);
@@ -372,6 +368,7 @@ function deleteEntry(code, id) {
     var sh = entriesSheet_();
     var r = findRow_(sh, id);
     if (r > 0) {
+      if (me.role === 'agent') deny_('your page is for viewing only. Ask Nana to delete it.');
       if (me.role !== 'manager') {
         var e = entryAt_(sh, r);
         if (e.by !== me.name || !visible_(me, e)) deny_('only Nana or the person who entered it can delete it.');

@@ -29,47 +29,57 @@ G.addEntries('W1', [
   { kind: 'issue', agent: 'Peter Boakye', product: 'OC', cartons: 30, date: '2026-10-05', status: 'pending' },
   { kind: 'issue', agent: 'Deborah', product: 'SPO', cartons: 10, date: '2026-10-05', status: 'pending' }]);
 
+test('deliveries are saved as confirmed, with no confirm step for the agent', () => {
+  assert.ok(G.getData('M1').entries.filter(e => e.kind === 'issue').every(e => e.status === 'confirmed'));
+});
+
 test('privacy: agents see only their own entries, Frank sees no credit', () => {
+  G.addEntries('M1', [{ kind: 'credit', agent: 'Peter Boakye', customer: 'Ama', product: 'OC', cartons: 5, date: '2026-10-06' }]);
   assert.ok(G.getData('P1').entries.every(e => e.agent === 'Peter Boakye'));
-  G.addEntries('P1', [{ kind: 'credit', customer: 'Ama', product: 'OC', cartons: 5, date: '2026-10-06' }]);
   assert.ok(G.getData('W1').entries.every(e => e.kind !== 'credit'));
   assert.strictEqual(G.getData('D1').entries.length, 1);
 });
 
-test('roles: agents cannot record deliveries, Frank cannot record credit', () => {
-  denied(() => G.addEntries('P1', [{ kind: 'issue', agent: 'Peter Boakye', product: 'OC', cartons: 1 }]), /DENIED/);
+test('roles: agents only view; Frank records stock, not credit or raises', () => {
+  denied(() => G.addEntries('P1', [{ kind: 'credit', customer: 'X', product: 'OC', cartons: 1, date: '2026-10-06' }]), /viewing only/);
+  denied(() => G.addEntries('P1', [{ kind: 'raise', product: 'OC', cartons: 1, date: '2026-10-06' }]), /viewing only/);
+  const id = G.getData('P1').entries[0].id;
+  denied(() => G.updateEntry('P1', id, { status: 'disputed' }), /viewing only/);
+  denied(() => G.deleteEntry('P1', id), /viewing only/);
   denied(() => G.addEntries('W1', [{ kind: 'credit', agent: 'Peter Boakye', customer: 'X', product: 'OC', cartons: 1 }]), /DENIED/);
+  denied(() => G.addEntries('W1', [{ kind: 'raise', agent: 'Peter Boakye', product: 'OC', cartons: 1 }]), /DENIED/);
   denied(() => G.saveConfig('P1', config), /only Nana/);
 });
 
-test('stock: no credit, cash sale or return beyond what the agent holds', () => {
-  denied(() => G.addEntries('P1', [{ kind: 'credit', customer: 'Kofi', product: 'OC', cartons: 26, date: '2026-10-06' }]), /only has 25/);
-  denied(() => G.addEntries('P1', [{ kind: 'payment', status: 'cash', customer: 'Kofi', product: 'OC', cartons: 26, date: '2026-10-06' }]), /only has 25/);
+test('stock: no credit, cash sale, return or raise beyond what the agent holds', () => {
+  denied(() => G.addEntries('M1', [{ kind: 'credit', agent: 'Peter Boakye', customer: 'Kofi', product: 'OC', cartons: 26, date: '2026-10-06' }]), /only has 25/);
+  denied(() => G.addEntries('M1', [{ kind: 'payment', status: 'cash', agent: 'Peter Boakye', customer: 'Kofi', product: 'OC', cartons: 26, date: '2026-10-06' }]), /only has 25/);
   denied(() => G.addEntries('W1', [{ kind: 'ret', agent: 'Peter Boakye', product: 'OC', cartons: 26, date: '2026-10-06' }]), /only has 25/);
+  denied(() => G.addEntries('M1', [{ kind: 'raise', agent: 'Peter Boakye', product: 'OC', cartons: 26, date: '2026-10-06' }]), /only has 25/);
 });
 
-test('raise: only after the customer has paid, and never more than paid', () => {
-  denied(() => G.addEntries('P1', [{ kind: 'raise', customer: 'Ama', product: 'OC', cartons: 1, date: '2026-10-06' }]), /Customer paid/);
-  G.addEntries('P1', [{ kind: 'payment', customer: 'Ama', product: 'OC', cartons: 5, date: '2026-10-06' }]);
-  denied(() => G.addEntries('P1', [{ kind: 'raise', customer: 'Ama', product: 'OC', cartons: 6, date: '2026-10-06' }]), /Customer paid/);
-  G.addEntries('P1', [{ kind: 'raise', customer: 'Ama', product: 'OC', cartons: 5, date: '2026-10-06' }]);
+test('raise: Nana records raises straight from Omni; customer raises still need a payment first', () => {
+  G.addEntries('M1', [{ kind: 'raise', agent: 'Peter Boakye', product: 'OC', cartons: 4, orderNo: 'OM-1', date: '2026-10-06' }]);
+  denied(() => G.addEntries('M1', [{ kind: 'raise', agent: 'Peter Boakye', product: 'OC', cartons: 22, date: '2026-10-06' }]), /only has 21/);
+  denied(() => G.addEntries('M1', [{ kind: 'raise', agent: 'Peter Boakye', customer: 'Ama', product: 'OC', cartons: 1, date: '2026-10-06' }]), /Customer paid/);
+  G.addEntries('M1', [{ kind: 'payment', agent: 'Peter Boakye', customer: 'Ama', product: 'OC', cartons: 5, date: '2026-10-06' }]);
+  G.addEntries('M1', [{ kind: 'raise', agent: 'Peter Boakye', customer: 'Ama', product: 'OC', cartons: 5, date: '2026-10-06' }]);
 });
 
-test('disputes: agent disputes once, Frank may only accept the agent number, Nana decides', () => {
-  const id = G.getData('P1').entries.find(e => e.kind === 'issue').id;
-  G.updateEntry('P1', id, { status: 'disputed', disputeCartons: 28, disputeNote: '2 left behind' });
-  denied(() => G.updateEntry('P1', id, { status: 'confirmed' }), /already disputed/);
+test('disputes: Frank may only accept the agent number, Nana decides', () => {
+  const id = G.getData('M1').entries.find(e => e.kind === 'issue' && e.agent === 'Peter Boakye').id;
+  G.updateEntry('M1', id, { status: 'disputed', disputeCartons: 28, disputeNote: '2 left behind' });
   denied(() => G.resolveDispute('P1', id, 28, ''), /only Nana or Frank/);
   denied(() => G.resolveDispute('W1', id, 29, ''), /only accept/);
   const e = G.resolveDispute('M1', id, 28, 'checked waybill').entries.find(x => x.id === id);
   assert.strictEqual(e.cartons, 28);
   assert.strictEqual(e.status, 'confirmed');
-  assert.ok(sent.some(m => /disputes a delivery/.test(m.sub)) && sent.some(m => /settled/.test(m.sub)));
+  assert.ok(sent.some(m => /settled/.test(m.sub)));
 });
 
 test('delete: only Nana or whoever entered it', () => {
   const frankEntry = G.getData('W1').entries.find(e => e.kind === 'issue' && e.agent === 'Deborah');
-  denied(() => G.deleteEntry('D1', frankEntry.id), /only Nana/);
+  denied(() => G.deleteEntry('D1', frankEntry.id), /viewing only/);
   G.deleteEntry('W1', frankEntry.id);
 });
 
@@ -93,7 +103,7 @@ test('names: spacing and capitals in the Codes tab or rows still reach the right
   G.addEntries('W1', [{ kind: 'issue', agent: 'DEBORAH', product: 'OC', cartons: 3, date: '2026-10-08', status: 'pending' }]);
   const mine = G.getData('D2');
   assert.strictEqual(mine.me.name, 'Deborah');
-  assert.ok(mine.entries.some(e => e.kind === 'issue' && e.status === 'pending' && e.agent === 'Deborah' && e.cartons === 3));
+  assert.ok(mine.entries.some(e => e.kind === 'issue' && e.status === 'confirmed' && e.agent === 'Deborah' && e.cartons === 3));
 });
 
 console.log(`\n${passed} tests passed`);

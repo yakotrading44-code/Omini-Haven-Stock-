@@ -39,38 +39,30 @@ If you used the old app, archive it: **Deploy > Manage deployments > Archive**, 
 
 ## Part 2: The daily routine
 
+Only Frank and Nana enter things. Peter, Deborah and Musah open the app to **view** their own book: what they have taken, what has been raised in Omni, and what is still with them. They can't record or change anything.
+
 | Who | When | What they do in the app |
 |---|---|---|
-| Frank | Every time cartons leave | **Give cartons to an agent**: pick the agent, then add every product and how many cartons. The agent gets an email. |
-| Agent | Same day | Open the delivery and tap **That's right**, or **That's wrong** and enter the number they actually took. |
+| Frank | Every time cartons leave | **Give cartons to an agent**: pick the agent, then add every product and how many cartons. It counts straight away; the agent gets an email. |
 | Frank | When cartons come back | **Agent returned cartons**. |
 | Frank | When the Multipro truck arrives | **Received from supplier**, with the invoice or waybill number. |
-| Agent | Each credit sale | **Gave cartons on credit**: customer, then every product and cartons (tap **+ Add another product**), and the total amount if known. |
-| Agent | When a customer pays | **Customer paid**: everyone who owes is listed; tick who paid and check the cartons. For a customer who pays on the spot, tap **cash sale** at the bottom of that screen. |
-| Agent | After paying, every order raised in Omni | **Raised order in Omni**: every paid customer is listed at once; untick any not raised, check the cartons, add the Omni order number. The app only allows this for cartons already marked paid. |
+| Nana | Daily, from the Omni app | **Raised in Omni** (on the Overview, or on an agent's page): pick the agent, add every product and cartons raised, and the Omni order number if you want. The app refuses more than the agent holds. |
+| Nana (optional) | When you want to track a customer who owes | On the agent's page: **Gave cartons on credit**, then **Customer paid** when they pay. |
 | Frank | Every Saturday, after the last carton goes out | **Count the warehouse** for each product, and type in what the Omni app shows. |
 | Nana | Monday | Read the summary email. Open the app and check that "Last check" reads **Matches** for every product. |
 
-The app refuses any credit, cash sale or return bigger than what the agent holds, and any order raised before the customer has paid. Past entries are on the **Entries** tab of each page. The **By date** tab shows a table of cartons taken (or raised, or returned) per agent per day, with From and To dates to filter.
+Past entries are on the **Entries** tab of each page. The **By date** tab shows a table of cartons taken (or raised, or returned) per agent per day, with From and To dates to filter.
 
-The rule that keeps the books balanced: **cartons taken = raised in Omni + returned + still with the agent**. "Still with the agent" is split into cartons out on credit, cartons paid but not yet raised, and unsold cartons in hand. Order of steps for every sale: **credit (if any) → customer paid → raised in Omni**.
+The rule that keeps the books balanced: **cartons taken = raised in Omni + returned + still with the agent**.
 
-## Part 3: When Frank and an agent disagree
+## Part 3: When an agent says a number is wrong
 
-1. **The agent flags it.** On the delivery, the agent taps **That's wrong** and enters the number they actually took, plus a short note. Nana and Frank get an email.
-2. **Frank checks first.** He looks at the shelf and his paperwork. If he agrees, he taps **[Agent] is right** on his page. The figure is corrected and everyone is emailed. Frank can only accept the agent's number. He cannot pick a third number.
-3. **If Frank doesn't agree, Nana decides.** On her page under **Disputed deliveries**, she taps **Keep** (Frank's number), **Use** (the agent's number), or **Other number** with a reason. Before deciding, she checks:
-   - the delivery note or waybill for that day,
-   - what the agent still has in the van or store,
-   - Frank's next warehouse count, which shows whether cartons are really missing from the warehouse.
-4. **Everyone is told.** The result is saved on the entry, for example "Changed from 25 to 20 by Frank (agreed with Peter)", and emailed to the agent, Frank and Nana. A settled delivery can't be disputed again.
-
-How to prevent disputes:
-- Frank records cartons **while the agent is standing there**, and the agent confirms on their phone before driving off.
-- A delivery left unconfirmed shows on Nana's Monday email.
+1. **The agent tells Frank or Nana** (call or WhatsApp). There's no button for it in their app.
+2. **Frank checks** the shelf and his paperwork. If he made a mistake, he deletes his entry and records it again with the right number.
+3. **If they still disagree, Nana decides.** She checks the waybill, what the agent still has in the van or store, and Frank's next warehouse count. Then she deletes and re-records the entry if needed.
 
 ## Part 4: Access and security
-- Peter and Deborah each see only their own book. Neither can see the other's cartons, credit or customers.
+- Peter and Deborah each see only their own book, and can only view it. Neither can see the other's cartons, credit or customers.
 - Frank sees warehouse stock and deliveries, but not customers' credit.
 - Nana sees everything, can open anyone's page, and is the only one who can add products or agents.
 - **To lock someone out**, change their code on the Codes tab. The old code stops working at once.
