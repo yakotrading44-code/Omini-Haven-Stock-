@@ -113,4 +113,18 @@ test('names: spacing and capitals in the Codes tab or rows still reach the right
   assert.ok(mine.entries.some(e => e.kind === 'issue' && e.status === 'pending' && e.agent === 'Deborah' && e.cartons === 3));
 });
 
+test('whatsapp: Nana\'s first visit adds the column; Frank and Nana get agent numbers, agents do not', () => {
+  const codes = book.sheets.Codes;
+  G.getData('M1');
+  G.getData('M1');
+  const head = codes.rows[0].map(h => String(h).toLowerCase());
+  assert.strictEqual(head.filter(h => h === 'whatsapp').length, 1);
+  const col = head.indexOf('whatsapp');
+  assert.strictEqual(col, 4);
+  const row = codes.rows.find(r => r[0] === 'Deborah'); row[col] = '0241234567';
+  assert.strictEqual(G.getData('W1').phones.Deborah, '0241234567');
+  assert.strictEqual(G.getData('M1').phones.Deborah, '0241234567');
+  assert.strictEqual(G.getData('D1').phones, undefined);
+});
+
 console.log(`\n${passed} tests passed`);

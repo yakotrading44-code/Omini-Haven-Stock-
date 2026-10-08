@@ -71,6 +71,7 @@ tfoot td{font-weight:700;background:var(--bg)}
 .item{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px}
 .item .main{min-width:0;display:grid;gap:2px}
 .item .row{display:flex;gap:6px;flex-wrap:wrap}
+a.btn{text-decoration:none}
 .link{background:none;border:0;color:var(--accent);font-weight:600;cursor:pointer;padding:4px 2px}
 /* forms */
 .sheet{position:fixed;inset:0;background:rgba(10,14,18,.45);display:grid;align-items:end;justify-items:center;z-index:10}
@@ -114,7 +115,7 @@ const DEFAULT_CONFIG={
 };
 const KIND={issue:"Cartons given to agent",receive:"Received from supplier",ret:"Returned to warehouse",count:"Warehouse count",
   raise:"Order raised in Omni",credit:"Given on credit",payment:"Customer paid"};
-let view="book",entryType="all",byDate={kind:"issue",from:"",to:"",agent:""},allEntries=[],db=true,accessCode=null,needCode=false,me=null,who=null,bookInfo=null,cfg=DEFAULT_CONFIG,entries=[],role=null,canWrite=true,loaded=false,weekOf=mondayOf(today());
+let view="book",entryType="all",byDate={kind:"issue",from:"",to:"",agent:""},allEntries=[],db=true,accessCode=null,needCode=false,me=null,who=null,bookInfo=null,phones={},appUrl="",cfg=DEFAULT_CONFIG,entries=[],role=null,canWrite=true,loaded=false,weekOf=mondayOf(today());
 const $=s=>document.querySelector(s);
 const main=$("#main");
 
@@ -314,11 +315,22 @@ function disputesHtml(asMgr){
     <p class="muted small">${asMgr?"Check the waybill, the agent's van and the warehouse count, then decide. Everyone is told the result.":"If you agree with the agent, accept their number. If not, leave it and Nana will decide."}</p></section>`;
 }
 
+// WhatsApp: the button opens the sender's own WhatsApp with the message typed out. Numbers come from the Codes tab.
+function waNum(p){let d=String(p||"").replace(/[^0-9]/g,"");if(d.length===10&&d[0]==="0")d="233"+d.slice(1);return d.length>=11?d:""}
+function waText(agent,items){const by=who?who.name.split(" ")[0]:"Frank";
+  return `Hi ${agent.split(" ")[0]}, ${by} has given you ${items.map(e=>n(e.cartons)+" x "+e.product).join(", ")} on ${[...new Set(items.map(e=>fmtDate(e.date)))].join(", ")}. Please open the Omni Haven stock book and tap That's right or That's wrong.${appUrl?"\n"+appUrl:""}`}
+function waHref(agent,items){const num=waNum(phones[agent]);return num?`https://wa.me/${num}?text=${encodeURIComponent(waText(agent,items))}`:""}
+function waButton(agent,items,cls){const h=waHref(agent,items);
+  return h?`<a class="btn ${cls||""}" href="${h}" target="_blank" rel="noopener">Send on WhatsApp<small>to ${esc(agent.split(" ")[0])}, from your phone</small></a>`
+    :`<p class="muted small">Add ${esc(agent.split(" ")[0])}'s number in the WhatsApp column of the Codes tab to send a message from here.</p>`}
+function showWhatsApp(agent,items){
+  $("#sheetCard").innerHTML=`<div class="lines"><h2>Saved</h2><p>Let ${esc(agent.split(" ")[0])} know so they can check and confirm.</p>${waButton(agent,items)}<div class="formbar"><button type="button" class="btn alt slim" id="waDone">Done</button></div></div>`;
+  $("#sheet").hidden=false;$("#waDone").onclick=closeForm;const a=$("#sheetCard a.btn");if(a)a.addEventListener("click",()=>setTimeout(closeForm,300))}
 // Deliveries Frank recorded that the agent hasn't confirmed yet, so Frank and Nana can chase them.
 function waitingHtml(){
   const list=entries.filter(e=>e.kind==="issue"&&e.status==="pending").sort((x,y)=>x.date<y.date?-1:1);
   if(!list.length)return "";
-  return `<section><h3>Waiting for the agent to confirm</h3><div class="list">${list.map(e=>`<div class="item"><div class="main"><strong>${esc(e.agent)}: ${n(e.cartons)} × ${esc(e.product)}</strong><span class="muted small">${fmtDate(e.date)} · recorded by ${esc(e.by||"Frank")}</span></div><span class="pill warn">Not confirmed</span></div>`).join("")}</div><p class="muted small">The agent sees these on their own page and taps That's right or That's wrong.</p></section>`;
+  return `<section><h3>Waiting for the agent to confirm</h3><div class="list">${list.map(e=>`<div class="item"><div class="main"><strong>${esc(e.agent)}: ${n(e.cartons)} × ${esc(e.product)}</strong><span class="muted small">${fmtDate(e.date)} · recorded by ${esc(e.by||"Frank")}</span></div><span class="pill warn">Not confirmed</span></div>`).join("")}</div>${[...new Set(list.map(e=>e.agent))].map(a=>{const h=waHref(a,list.filter(e=>e.agent===a));return h?`<a class="link" href="${h}" target="_blank" rel="noopener">Remind ${esc(a.split(" ")[0])} on WhatsApp</a> `:""}).join("")}<p class="muted small">The agent sees these on their own page and taps That's right or That's wrong.</p></section>`;
 }
 function renderFrank(){
   const allRows=cfg.products.map(warehouseRow),rows=allRows.filter(r=>r.count||r.nr||r.iss||r.recv||r.ret),idle=allRows.filter(r=>!rows.includes(r)).map(r=>r.p);
@@ -520,7 +532,7 @@ function openForm(kind){
       }
       docs.forEach((d,i)=>d.id="tmp-"+Date.now()+"-"+i);
       later(()=>allEntries.push(...docs.map(d=>({...d}))),"addEntries",docs.map(({id,...d})=>d));
-      closeForm();toast(docs.length>1?`Saved ${docs.length} entries`:"Saved");
+      if(kind==="issue")showWhatsApp(docs[0].agent,docs);else{closeForm();toast(docs.length>1?`Saved ${docs.length} entries`:"Saved")}
     }catch(e){$("#save")&&($("#save").disabled=false);err.textContent=typeof e==="string"?e:writeError(e)}
   };
 }
@@ -579,7 +591,7 @@ function later(mutate,fn,...args){
 }
 function setSync(){if(pending)$("#status").textContent="Saving…"}
 function findE(id){return allEntries.find(e=>e.id===id)}
-function apply(d){allEntries=d.entries||[];if(d.config)cfg={...DEFAULT_CONFIG,...d.config};who=d.me||who;bookInfo=d.book||null;role=myRole();loaded=true;needCode=false;
+function apply(d){allEntries=d.entries||[];if(d.config)cfg={...DEFAULT_CONFIG,...d.config};who=d.me||who;bookInfo=d.book||null;phones=d.phones||{};appUrl=d.appUrl||"";role=myRole();loaded=true;needCode=false;
   $("#status").textContent=(who?who.name.split(" ")[0]+" · ":"")+allEntries.length+" entries · updated "+new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});render()}
 async function load(fromForm){
   if(pending)return;

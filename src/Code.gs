@@ -132,6 +132,7 @@ function readAll_(me) {
     .filter(function (e) { return visible_(me, e); });
   var out = { entries: entries, config: config_(), me: me };
   if (me.role === 'manager') out.book = { name: book_().getName(), url: book_().getUrl() };
+  if (me.role === 'manager' || me.role === 'warehouse') { out.phones = phones_(cfg); out.appUrl = appUrl_(); }
   return out;
 }
 
@@ -187,10 +188,30 @@ function ensureCodes_(config) {
 // ---- email (Gmail) ----
 // Column D of the Codes tab holds each person's email. A blank email means no emails for that person.
 
+// A column headed "WhatsApp" (anywhere on the Codes tab) holds each person's WhatsApp number.
 function people_() {
-  return codesSheet_().getDataRange().getDisplayValues().slice(1)
+  var rows = codesSheet_().getDataRange().getDisplayValues();
+  var wa = (rows[0] || []).map(function (h) { return String(h).trim().toLowerCase(); }).indexOf('whatsapp');
+  return rows.slice(1)
     .filter(function (r) { return String(r[0]).trim(); })
-    .map(function (r) { return { name: String(r[0]).trim(), role: String(r[2] || '').trim().toLowerCase(), email: String(r[3] || '').trim() }; });
+    .map(function (r) { return { name: String(r[0]).trim(), role: String(r[2] || '').trim().toLowerCase(), email: String(r[3] || '').trim(), phone: wa >= 0 ? String(r[wa] || '').trim() : '' }; });
+}
+
+// Adds the WhatsApp column next to Email the first time Nana opens the app.
+function ensureWhatsAppColumn_() {
+  var sh = codesSheet_();
+  var head = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0].map(function (h) { return String(h).trim().toLowerCase(); });
+  if (head.indexOf('whatsapp') >= 0) return;
+  sh.insertColumnBefore(5);
+  sh.getRange(1, 5).setValue('WhatsApp');
+  sh.getRange(2, 5, Math.max(sh.getLastRow() - 1, 1), 1).setNumberFormat('@');
+}
+
+// Agents' WhatsApp numbers, for the "Send on WhatsApp" button on Frank's and Nana's pages.
+function phones_(cfg) {
+  var out = {};
+  people_().forEach(function (p) { if (p.phone && p.role === 'agent') out[canon_(p.name, cfg)] = p.phone; });
+  return out;
 }
 
 function emailsFor_(test) {
@@ -216,7 +237,9 @@ function nameFor_(role) { var p = people_().filter(function (x) { return x.role 
 // ---- called from the app ----
 
 function getData(code) {
-  return readAll_(whoIs_(code));
+  var me = whoIs_(code);
+  if (me.role === 'manager') { try { ensureWhatsAppColumn_(); } catch (err) { console.warn(err); } }
+  return readAll_(me);
 }
 
 function addEntries(code, list) {

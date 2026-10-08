@@ -14,7 +14,8 @@ Sheet.prototype={
       setValue(x){return R.setValues([[x]])},clearContent(){for(let i=0;i<nr;i++)for(let j=0;j<nc;j++)if(sh.rows[r-1+i])sh.rows[r-1+i][col-1+j]='';return R},setNumberFormat(){return R}};
     return R},
   getDataRange(){return this.getRange(1,1,Math.max(1,this.lastRow()),Math.max(1,this.getLastColumn()))},
-  deleteRow(r){this.rows.splice(r-1,1)}
+  deleteRow(r){this.rows.splice(r-1,1)},
+  insertColumnBefore(c){this.rows.forEach(r=>{while(r.length<c-1)r.push('');r.splice(c-1,0,'')})}
 };
 function makeBook(tabs){
   const sheets={};for(const k in tabs)sheets[k]=new Sheet(k,tabs[k]);

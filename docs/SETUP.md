@@ -101,6 +101,12 @@ From then on:
 
 To update by hand instead: paste in the new code and click **Save**. Then go to **Deploy > Manage deployments**, click the pencil, set **Version: New version**, and click **Deploy**.
 
+## WhatsApp messages to agents
+
+After Frank (or Nana) saves cartons given to an agent, the app shows a **Send on WhatsApp** button. Tapping it opens WhatsApp on that phone with the message already typed to the agent, saying what was given and asking them to confirm. Press send. It is free and uses your own WhatsApp.
+
+To set it up, open the Codes tab of the Sheet and type each agent's number in the **WhatsApp** column (the app adds that column the first time Nana opens it), for example 0241234567. If an agent hasn't confirmed yet, Frank and Nana can also tap **Remind on WhatsApp** under "Waiting for the agent to confirm".
+
 ## If entries don't show up in the Sheet
 Every saved entry goes to the **Entries** tab of the Sheet you opened Apps Script from. Nana's page shows that Sheet's name and a link at the bottom.
 - Make sure everyone uses the `/exec` link, not the Claude link.
