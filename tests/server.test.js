@@ -113,17 +113,21 @@ test('names: spacing and capitals in the Codes tab or rows still reach the right
   assert.ok(mine.entries.some(e => e.kind === 'issue' && e.status === 'pending' && e.agent === 'Deborah' && e.cartons === 3));
 });
 
-test('whatsapp: Nana\'s first visit adds the column; Frank and Nana get agent numbers, agents do not', () => {
+test('whatsapp: the first visit adds the column and Nana\'s numbers; Frank and Nana get agent numbers, agents do not', () => {
   const codes = book.sheets.Codes;
   G.getData('M1');
   G.getData('M1');
+  const h0 = codes.rows[0].map(h => String(h).toLowerCase()).indexOf('whatsapp');
+  assert.strictEqual(codes.rows.find(r => r[0] === 'Peter Boakye')[h0], '+233 59 400 3407');
+  assert.strictEqual(codes.rows.find(r => r[0] === 'Frank')[h0], '+233 54 983 2920');
+  assert.strictEqual(codes.rows.find(r => r[0] === 'Nana (manager)')[h0], '+233 54 351 4336');
+  assert.strictEqual(codes.rows.find(r => r[0] === 'Sarah Ofori')[h0], '');
   const head = codes.rows[0].map(h => String(h).toLowerCase());
   assert.strictEqual(head.filter(h => h === 'whatsapp').length, 1);
   const col = head.indexOf('whatsapp');
   assert.strictEqual(col, 4);
-  const row = codes.rows.find(r => r[0] === 'Deborah'); row[col] = '0241234567';
-  assert.strictEqual(G.getData('W1').phones.Deborah, '0241234567');
-  assert.strictEqual(G.getData('M1').phones.Deborah, '0241234567');
+  assert.strictEqual(G.getData('W1').phones.Deborah, '+233 54 971 6363');
+  assert.strictEqual(G.getData('M1').phones.Deborah, '+233 54 971 6363');
   assert.strictEqual(G.getData('D1').phones, undefined);
 });
 

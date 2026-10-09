@@ -207,6 +207,31 @@ function ensureWhatsAppColumn_() {
   sh.getRange(2, 5, Math.max(sh.getLastRow() - 1, 1), 1).setNumberFormat('@');
 }
 
+// Numbers Nana sent on 9 Oct 2026. Each is written once into an empty WhatsApp cell;
+// after that the Codes tab is the place to change them.
+var STARTING_NUMBERS = [
+  { role: 'manager', number: '+233 54 351 4336' },
+  { role: 'warehouse', number: '+233 54 983 2920' },
+  { first: 'deborah', number: '+233 54 971 6363' },
+  { first: 'peter', number: '+233 59 400 3407' }
+];
+
+function fillStartingNumbers_() {
+  var sh = codesSheet_(), rows = sh.getDataRange().getDisplayValues();
+  var col = (rows[0] || []).map(function (h) { return String(h).trim().toLowerCase(); }).indexOf('whatsapp');
+  if (col < 0) return;
+  STARTING_NUMBERS.forEach(function (n) {
+    for (var i = 1; i < rows.length; i++) {
+      var name = String(rows[i][0]).trim(), role = String(rows[i][2] || '').trim().toLowerCase();
+      if (!name || String(rows[i][col]).trim()) continue;
+      if (n.role ? role === n.role : (role === 'agent' && first_(name).toLowerCase() === n.first)) {
+        sh.getRange(i + 1, col + 1).setNumberFormat('@').setValue(n.number);
+        rows[i][col] = n.number;
+      }
+    }
+  });
+}
+
 // Agents' WhatsApp numbers, for the "Send on WhatsApp" button on Frank's and Nana's pages.
 function phones_(cfg) {
   var out = {};
@@ -238,7 +263,7 @@ function nameFor_(role) { var p = people_().filter(function (x) { return x.role 
 
 function getData(code) {
   var me = whoIs_(code);
-  if (me.role === 'manager') { try { ensureWhatsAppColumn_(); } catch (err) { console.warn(err); } }
+  try { ensureWhatsAppColumn_(); fillStartingNumbers_(); } catch (err) { console.warn(err); }
   return readAll_(me);
 }
 
