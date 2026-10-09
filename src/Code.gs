@@ -63,8 +63,11 @@ function config_() {
 }
 
 // Turns a code into the person using it, or refuses.
+// The app sends "code|phone id"; the phone id is made once per phone and kept in its browser.
 function whoIs_(code) {
-  code = String(code || '').trim();
+  var parts = String(code || '').split('|');
+  code = parts[0].trim();
+  var device = String(parts[1] || '').trim();
   if (!code) throw new Error('ACCESS: enter your code.');
   var rows = codesSheet_().getDataRange().getDisplayValues().slice(1);
   for (var i = 0; i < rows.length; i++) {
@@ -77,6 +80,7 @@ function whoIs_(code) {
       name = canon_(name, cfg);
       var a = ((cfg && cfg.agents) || []).filter(function (x) { return x.name === name; })[0];
       if (a && a.active === false) throw new Error('ACCESS: ' + name + ' has been retired. Ask Nana.');
+      checkPhone_(i + 2, device, name);
     }
     return { name: name, role: role };
   }
@@ -131,7 +135,7 @@ function readAll_(me) {
     .map(function (r) { var e = toEntry_(r, idx); if (e.agent) e.agent = canon_(e.agent, cfg); return e; })
     .filter(function (e) { return visible_(me, e); });
   var out = { entries: entries, config: config_(), me: me };
-  if (me.role === 'manager') out.book = { name: book_().getName(), url: book_().getUrl() };
+  if (me.role === 'manager') { out.book = { name: book_().getName(), url: book_().getUrl() }; try { out.locks = phoneLocks_(); } catch (err) { out.locks = {}; } }
   if (me.role === 'manager' || me.role === 'warehouse') { out.phones = phones_(cfg); out.appUrl = appUrl_(); }
   // Agents only get Nana's number, for the "Tell Nana on WhatsApp" button after they dispute a delivery.
   if (me.role === 'agent') {
@@ -210,6 +214,52 @@ function ensureWhatsAppColumn_() {
   sh.insertColumnBefore(5);
   sh.getRange(1, 5).setValue('WhatsApp');
   sh.getRange(2, 5, Math.max(sh.getLastRow() - 1, 1), 1).setNumberFormat('@');
+}
+
+// Each agent's code works on one phone only: the first phone that uses it.
+// The "Locked to phone" column on the Codes tab holds that phone's id. Clearing the cell (or Unlock phone
+// in the app) lets the next phone that uses the code take its place.
+var LOCK_HEADER = 'Locked to phone';
+
+function lockColumn_() {
+  ensureWhatsAppColumn_();
+  var sh = codesSheet_();
+  var head = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0].map(function (h) { return String(h).trim().toLowerCase(); });
+  var c = head.indexOf(LOCK_HEADER.toLowerCase());
+  if (c >= 0) return c + 1;
+  c = head.indexOf('whatsapp') + 2;
+  sh.insertColumnBefore(c);
+  sh.getRange(1, c).setValue(LOCK_HEADER);
+  sh.getRange(2, c, Math.max(sh.getLastRow() - 1, 1), 1).setNumberFormat('@');
+  return c;
+}
+
+function checkPhone_(row, device, name) {
+  if (!device) throw new Error('ACCESS: please close the app and open it again.');
+  var cell = codesSheet_().getRange(row, lockColumn_());
+  var locked = String(cell.getDisplayValue()).trim();
+  if (!locked) cell.setNumberFormat('@').setValue(device);
+  else if (locked !== device) throw new Error('ACCESS: ' + first_(name) + '\'s code is already in use on another phone. Ask Nana to unlock it.');
+}
+
+function phoneLocks_() {
+  var c = lockColumn_(), out = {};
+  codesSheet_().getDataRange().getDisplayValues().slice(1).forEach(function (r) {
+    if (String(r[2]).trim().toLowerCase() === 'agent' && String(r[c - 1]).trim()) out[canon_(String(r[0]).trim())] = true;
+  });
+  return out;
+}
+
+// Nana only: lets the agent sign in again on a new phone.
+function unlockPhone(code, agent) {
+  var me = whoIs_(code);
+  if (me.role !== 'manager') deny_('only Nana can unlock a phone.');
+  var c = lockColumn_(), sh = codesSheet_();
+  var rows = sh.getDataRange().getDisplayValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][2]).trim().toLowerCase() === 'agent' && canon_(String(rows[i][0]).trim()) === canon_(agent)) sh.getRange(i + 1, c).setValue('');
+  }
+  return readAll_(me);
 }
 
 // Numbers Nana sent on 9 Oct 2026. Each is written once into an empty WhatsApp cell;

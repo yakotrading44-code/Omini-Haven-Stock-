@@ -101,6 +101,12 @@ From then on:
 
 To update by hand instead: paste in the new code and click **Save**. Then go to **Deploy > Manage deployments**, click the pencil, set **Version: New version**, and click **Deploy**.
 
+## Each agent's code works on one phone
+
+The first phone an agent opens the app on is the only phone their code works on. Anyone who tries the same code on another phone, or in a private browser window, is refused. The **Locked to phone** column on the Codes tab shows which agents are locked.
+
+If an agent gets a new phone or clears their browser, open **Agents** in the app and tap **Unlock phone** next to their name (or clear their cell in the Locked to phone column). The next phone they use becomes their phone. Frank's and Nana's codes are not locked.
+
 ## WhatsApp messages to agents
 
 After Frank (or Nana) saves cartons given to an agent, the app shows a **Send on WhatsApp** button. Tapping it opens WhatsApp on that phone with the message already typed to the agent, saying what was given and asking them to confirm. Press send. It is free and uses your own WhatsApp.

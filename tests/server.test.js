@@ -14,7 +14,9 @@ const book = makeBook({
     ['Nana (manager)', 'M1', 'manager', 'nana@example.com'], ['Frank', 'W1', 'warehouse', ''],
     ['Peter Boakye', 'P1', 'agent', 'peter@example.com'], ['Deborah', 'D1', 'agent', ''], ['Sarah Ofori', 'S1', 'agent', '']]
 });
-const G = load(book);
+const raw = load(book);
+// The app always sends "code|phone id"; tests use one phone per person unless they say otherwise.
+const G = new Proxy(raw, { get: (t, k) => typeof t[k] === 'function' && !/_$/.test(k) ? (c, ...a) => t[k](String(c).includes('|') ? c : c + '|phone-' + c, ...a) : t[k] });
 const denied = (f, re) => assert.throws(f, re);
 let passed = 0;
 const test = (name, f) => { f(); passed++; console.log('ok -', name); };
@@ -130,6 +132,18 @@ test('whatsapp: the first visit adds the column and Nana\'s numbers; Frank and N
   assert.strictEqual(G.getData('M1').phones.Deborah, '+233 54 971 6363');
   assert.deepStrictEqual(Object.keys(G.getData('D1').phones), ['Nana']);
   assert.strictEqual(G.getData('D1').phones.Nana, '+233 54 351 4336');
+});
+
+test('phone lock: an agent code works only on the first phone; Nana can unlock it', () => {
+  G.getData('P1');
+  denied(() => G.getData('P1|other-phone'), /another phone/);
+  denied(() => raw.getData('P1'), /close the app/);
+  assert.strictEqual(G.getData('M1').locks['Peter Boakye'], true);
+  denied(() => G.unlockPhone('W1', 'Peter Boakye'), /only Nana/);
+  G.unlockPhone('M1', 'Peter Boakye');
+  G.getData('P1|new-phone');
+  denied(() => G.getData('P1'), /another phone/);
+  G.getData('W1|a'); G.getData('W1|b'); G.getData('M1|x'); G.getData('M1|y');
 });
 
 console.log(`\n${passed} tests passed`);

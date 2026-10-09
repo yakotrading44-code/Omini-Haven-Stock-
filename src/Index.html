@@ -115,7 +115,7 @@ const DEFAULT_CONFIG={
 };
 const KIND={issue:"Cartons given to agent",receive:"Received from supplier",ret:"Returned to warehouse",count:"Warehouse count",
   raise:"Order raised in Omni",credit:"Given on credit",payment:"Customer paid"};
-let view="book",entryType="all",byDate={kind:"issue",from:"",to:"",agent:""},allEntries=[],db=true,accessCode=null,needCode=false,me=null,who=null,bookInfo=null,phones={},appUrl="",cfg=DEFAULT_CONFIG,entries=[],role=null,canWrite=true,loaded=false,weekOf=mondayOf(today());
+let view="book",entryType="all",byDate={kind:"issue",from:"",to:"",agent:""},allEntries=[],db=true,accessCode=null,needCode=false,me=null,who=null,bookInfo=null,locks={},phones={},appUrl="",cfg=DEFAULT_CONFIG,entries=[],role=null,canWrite=true,loaded=false,weekOf=mondayOf(today());
 const $=s=>document.querySelector(s);
 const main=$("#main");
 
@@ -459,7 +459,7 @@ function openForm(kind){
   else if(kind==="mraise"){titleTxt="Raised in Omni";const isA=activeAgents().includes(role);
     body=`<div class="grid2">${isA?`<input type="hidden" id="f_agent" value="${esc(role)}"><label>Agent<input value="${esc(role)}" disabled></label>`:agentSel}${date}</div><div class="lines" id="lines"></div><button type="button" class="link" id="addLine">+ Add another product</button><label>Omni order number (optional)<input id="f_order"></label><p class="muted small">Copy what the agent raised in the Omni app. The app won't allow more than the agent is holding.</p>`}
   else if(kind==="clear"){titleTxt="Clear all entries";body=`<p>This removes all ${allEntries.length} entries for everyone: deliveries, credit, payments, raised orders and counts. Products, agents and codes stay.</p><p class="muted small">A full copy is saved first on a new <strong>Backup</strong> tab in the Sheet, so you can look back or copy rows back if needed.</p><label>Type CLEAR to confirm<input id="f_confirm" autocomplete="off" autocapitalize="characters"></label>`}
-  else if(kind==="agent"){titleTxt="Agents";body=`<div class="list">${cfg.agents.map((a,i)=>`<div class="item"><span>${esc(a.name)}</span><button type="button" class="link" data-toggle="${i}">${a.active?"Retire":"Bring back"}</button></div>`).join("")}</div><label>New agent's name<input id="f_newagent"></label>`}
+  else if(kind==="agent"){titleTxt="Agents";body=`<div class="list">${cfg.agents.map((a,i)=>`<div class="item"><span>${esc(a.name)}</span><span style="display:flex;gap:16px">${(locks||{})[a.name]?`<button type="button" class="link" data-unlock="${esc(a.name)}">Unlock phone</button>`:""}<button type="button" class="link" data-toggle="${i}">${a.active?"Retire":"Bring back"}</button></span></div>`).join("")}</div><label>New agent's name<input id="f_newagent"></label>`}
   c.innerHTML=`<form id="theForm" class="lines" novalidate><h2>${esc(titleTxt)}</h2>${body}<div class="err" id="f_err"></div><div class="formbar"><button type="button" class="btn alt slim" id="cancel">Cancel</button><button class="btn slim" type="submit" id="save">Save</button></div></form>`;
   $("#sheet").hidden=false;
   if(kind==="clear")$("#save").textContent="Clear everything";
@@ -473,6 +473,7 @@ function openForm(kind){
       d.querySelector(".x").onclick=()=>{if($("#lines").children.length>1)d.remove()};$("#lines").appendChild(d)};
     add();$("#addLine").onclick=add}
   if(kind==="raise"&&!$("#rlines"))$("#save").hidden=true;
+  c.querySelectorAll("[data-unlock]").forEach(b=>b.onclick=async()=>{b.disabled=true;try{apply(await call("unlockPhone",b.dataset.unlock));toast(b.dataset.unlock.split(" ")[0]+" can now sign in on a new phone.");openForm("agent")}catch(e){toast(writeError(e))}});
   c.querySelectorAll("[data-toggle]").forEach(b=>b.onclick=async()=>{const i=+b.dataset.toggle;const agents=cfg.agents.map((a,j)=>j===i?{...a,active:!a.active}:a);await saveConfig({...cfg,agents});openForm("agent")});
   $("#cancel").onclick=closeForm;
   $("#theForm").onsubmit=async ev=>{ev.preventDefault();const err=$("#f_err");err.textContent="";
@@ -585,7 +586,7 @@ document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&!$("#sheet").hidd
 
 /* ---------- boot ---------- */
 render();
-function call(fn,...args){return new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](accessCode||"",...args))}
+function call(fn,...args){return new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn]((accessCode||"")+"|"+me,...args))}
 // Writes show on screen at once and are saved in the background, one after another.
 let queue=Promise.resolve(),pending=0;
 function later(mutate,fn,...args){
@@ -595,13 +596,13 @@ function later(mutate,fn,...args){
 }
 function setSync(){if(pending)$("#status").textContent="Saving…"}
 function findE(id){return allEntries.find(e=>e.id===id)}
-function apply(d){allEntries=d.entries||[];if(d.config)cfg={...DEFAULT_CONFIG,...d.config};who=d.me||who;$("#changeCode").hidden=!who||who.role==="agent";bookInfo=d.book||null;phones=d.phones||{};appUrl=d.appUrl||"";role=myRole();loaded=true;needCode=false;
+function apply(d){allEntries=d.entries||[];if(d.config)cfg={...DEFAULT_CONFIG,...d.config};who=d.me||who;$("#changeCode").hidden=!who||who.role==="agent";bookInfo=d.book||null;phones=d.phones||{};locks=d.locks||{};appUrl=d.appUrl||"";role=myRole();loaded=true;needCode=false;
   $("#status").textContent=(who?who.name.split(" ")[0]+" · ":"")+allEntries.length+" entries · updated "+new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});render()}
 async function load(fromForm){
   if(pending)return;
   try{const d=await call("getData");if(!pending)apply(d)}
   catch(e){const m=String(e&&e.message||e);
-    if(m.indexOf("ACCESS")>=0){needCode=true;who=null;loaded=false;allEntries=[];render();if(fromForm)$("#codeErr").textContent=m.indexOf("retired")>=0?m.slice(m.indexOf("ACCESS:")+7).trim():"That code is not right. Check with Nana."}
+    if(m.indexOf("ACCESS")>=0){needCode=true;who=null;loaded=false;allEntries=[];render();const why=m.slice(m.indexOf("ACCESS:")+7).trim();if(fromForm||/phone|retired|open it again/.test(why))setTimeout(()=>{const ce=$("#codeErr");if(ce)ce.textContent=/wrong code|enter your code/.test(why)?"That code is not right. Check with Nana.":why},0)}
     else $("#status").textContent="Couldn't reach the stock book. Check your connection; it will retry."}
 }
 me=store("ohDevice")||("d"+Math.random().toString(36).slice(2,10));store("ohDevice",me);
