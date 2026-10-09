@@ -98,7 +98,7 @@ input,select{font:inherit;padding:10px 11px;border:1px solid var(--line);border-
     <div class="brand"><span class="eyebrow">Omni Haven</span><h1>Stock Book</h1></div>
     <div class="who" id="who" role="group" aria-label="Who is using this"></div>
   </header>
-  <div class="muted small" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between"><span id="status">Connecting to the shared book…</span><button class="link" id="changeCode" type="button">Change code</button></div>
+  <div class="muted small" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between"><span id="status">Connecting to the shared book…</span><button class="link" id="changeCode" type="button" hidden>Change code</button></div>
   <main id="main" class="wrap" style="padding:0"></main>
 </div>
 <div id="sheet" class="sheet" hidden><div class="card" id="sheetCard" role="dialog" aria-modal="true"></div></div>
@@ -538,7 +538,7 @@ function openForm(kind){
 }
 function writeError(e){
   const m=String(e&&e.message||e||"");
-  if(m.indexOf("ACCESS")>=0){return "Your code no longer works. Tap Change code and enter the one Nana gave you."}
+  if(m.indexOf("ACCESS")>=0){return "Your code no longer works. Ask Nana for your new code, then open the app again."}
   if(m.indexOf("DENIED:")>=0){const t=m.slice(m.indexOf("DENIED:")+7).trim();return t.charAt(0).toUpperCase()+t.slice(1)}
   if(e&&e.code==="quota_exceeded")return "The book is full. Ask Nana to archive old entries.";
   return "Couldn't save. Check your connection and try again."
@@ -595,7 +595,7 @@ function later(mutate,fn,...args){
 }
 function setSync(){if(pending)$("#status").textContent="Saving…"}
 function findE(id){return allEntries.find(e=>e.id===id)}
-function apply(d){allEntries=d.entries||[];if(d.config)cfg={...DEFAULT_CONFIG,...d.config};who=d.me||who;bookInfo=d.book||null;phones=d.phones||{};appUrl=d.appUrl||"";role=myRole();loaded=true;needCode=false;
+function apply(d){allEntries=d.entries||[];if(d.config)cfg={...DEFAULT_CONFIG,...d.config};who=d.me||who;$("#changeCode").hidden=!who||who.role==="agent";bookInfo=d.book||null;phones=d.phones||{};appUrl=d.appUrl||"";role=myRole();loaded=true;needCode=false;
   $("#status").textContent=(who?who.name.split(" ")[0]+" · ":"")+allEntries.length+" entries · updated "+new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});render()}
 async function load(fromForm){
   if(pending)return;
