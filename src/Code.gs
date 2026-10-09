@@ -133,6 +133,11 @@ function readAll_(me) {
   var out = { entries: entries, config: config_(), me: me };
   if (me.role === 'manager') out.book = { name: book_().getName(), url: book_().getUrl() };
   if (me.role === 'manager' || me.role === 'warehouse') { out.phones = phones_(cfg); out.appUrl = appUrl_(); }
+  // Agents only get Nana's number, for the "Tell Nana on WhatsApp" button after they dispute a delivery.
+  if (me.role === 'agent') {
+    var nana = people_().filter(function (p) { return p.role === 'manager' && p.phone; })[0];
+    if (nana) { out.phones = { Nana: nana.phone }; out.appUrl = appUrl_(); }
+  }
   return out;
 }
 

@@ -113,7 +113,7 @@ test('names: spacing and capitals in the Codes tab or rows still reach the right
   assert.ok(mine.entries.some(e => e.kind === 'issue' && e.status === 'pending' && e.agent === 'Deborah' && e.cartons === 3));
 });
 
-test('whatsapp: the first visit adds the column and Nana\'s numbers; Frank and Nana get agent numbers, agents do not', () => {
+test('whatsapp: the first visit adds the column and Nana\'s numbers; Frank and Nana get agent numbers, agents only get Nana\'s', () => {
   const codes = book.sheets.Codes;
   G.getData('M1');
   G.getData('M1');
@@ -128,7 +128,8 @@ test('whatsapp: the first visit adds the column and Nana\'s numbers; Frank and N
   assert.strictEqual(col, 4);
   assert.strictEqual(G.getData('W1').phones.Deborah, '+233 54 971 6363');
   assert.strictEqual(G.getData('M1').phones.Deborah, '+233 54 971 6363');
-  assert.strictEqual(G.getData('D1').phones, undefined);
+  assert.deepStrictEqual(Object.keys(G.getData('D1').phones), ['Nana']);
+  assert.strictEqual(G.getData('D1').phones.Nana, '+233 54 351 4336');
 });
 
 console.log(`\n${passed} tests passed`);
