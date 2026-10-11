@@ -549,9 +549,10 @@ function clearAllEntries(code, confirmWord) {
       book_().insertSheet(name).getRange(1, 1, last, width).setValues(values);
       sh.getRange(2, 1, last - 1, width).clearContent();
     }
-    // The fresh start date: the Omni import skips orders placed before it.
+    // Fresh start: the counts are taken at the end of the day of clearing, so they already reflect that
+    // day's sales. The Omni import therefore only takes orders from the next day on.
     var cfg = config_() || {};
-    cfg.omniFrom = Utilities.formatDate(new Date(), book_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+    cfg.omniFrom = Utilities.formatDate(new Date(Date.now() + 864e5), book_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
     settingsSheet_().getRange('B2').setValue(JSON.stringify(cfg));
     return readAll_(me);
   });
