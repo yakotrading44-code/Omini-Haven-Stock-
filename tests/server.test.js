@@ -105,6 +105,7 @@ test('clear all: only Nana, needs CLEAR, keeps a backup tab', () => {
   assert.strictEqual(G.getData('M1').entries.length, 1);
   G.clearAllEntries('M1', 'CLEAR');
   assert.strictEqual(Object.keys(book.sheets).filter(n => /^Backup /.test(n)).length, 2);
+  assert.match(G.getData('M1').config.omniFrom, /^\d{4}-\d{2}-\d{2}$/);
 });
 
 test('names: spacing and capitals in the Codes tab or rows still reach the right book', () => {

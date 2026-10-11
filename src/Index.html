@@ -459,7 +459,7 @@ function openForm(kind){
   else if(kind==="product"){titleTxt="Add a product";body=`<label>Carton code<input id="f_code" placeholder="e.g. CF 500G"></label>`}
   else if(kind==="mraise"){titleTxt="Raised in Omni";const isA=activeAgents().includes(role);
     body=`<div class="grid2">${isA?`<input type="hidden" id="f_agent" value="${esc(role)}"><label>Agent<input value="${esc(role)}" disabled></label>`:agentSel}${date}</div><div class="lines" id="lines"></div><button type="button" class="link" id="addLine">+ Add another product</button><label>Omni order number (optional)<input id="f_order"></label><p class="muted small">Copy what the agent raised in the Omni app. The app won't allow more than the agent is holding.</p>`}
-  else if(kind==="clear"){titleTxt="Clear all entries";body=`<p>This removes all ${allEntries.length} entries for everyone: deliveries, credit, payments, raised orders and counts. Products, agents and codes stay.</p><p class="muted small">A full copy is saved first on a new <strong>Backup</strong> tab in the Sheet, so you can look back or copy rows back if needed.</p><label>Type CLEAR to confirm<input id="f_confirm" autocomplete="off" autocapitalize="characters"></label>`}
+  else if(kind==="clear"){titleTxt="Clear all entries";body=`<p>This removes all ${allEntries.length} entries for everyone: deliveries, credit, payments, raised orders and counts. Products, agents and codes stay.</p><p class="muted small">A full copy is saved first on a new <strong>Backup</strong> tab in the Sheet, so you can look back or copy rows back if needed. After clearing, Import from Omni skips orders placed before today.</p><label>Type CLEAR to confirm<input id="f_confirm" autocomplete="off" autocapitalize="characters"></label>`}
   else if(kind==="agent"){titleTxt="Agents";body=`<div class="list">${cfg.agents.map((a,i)=>`<div class="item"><span>${esc(a.name)}</span><span style="display:flex;gap:16px">${(locks||{})[a.name]?`<button type="button" class="link" data-unlock="${esc(a.name)}">Unlock phone</button>`:""}<button type="button" class="link" data-toggle="${i}">${a.active?"Retire":"Bring back"}</button></span></div>`).join("")}</div><label>New agent's name<input id="f_newagent"></label>`}
   c.innerHTML=`<form id="theForm" class="lines" novalidate><h2>${esc(titleTxt)}</h2>${body}<div class="err" id="f_err"></div><div class="formbar"><button type="button" class="btn alt slim" id="cancel">Cancel</button><button class="btn slim" type="submit" id="save">Save</button></div></form>`;
   $("#sheet").hidden=false;
@@ -563,7 +563,8 @@ function omniLines(rows){
   if(c.q<0||c.ag<0||c.date<0)throw"The export is missing the OrderDate, Qty Placed or AgentName column.";
   return rows.slice(hi+1).filter(r=>r[c.id]&&n(r[c.q])>0&&r[c.ag]).map(r=>({orderNo:String(r[c.id]).trim(),date:omniDate(r[c.date]),status:String(r[c.st]||""),sku:String(r[c.sku]||"").trim(),skuName:String(r[c.nm]||""),cartons:n(r[c.q]),omniAgent:String(r[c.ag]).trim()}))}
 function omniPlan(lines,skuMap,keep){
-  const plan={add:[],skipDup:0,unknownSku:{},noAgent:{},retired:{},replace:[]};
+  const plan={add:[],skipDup:0,old:0,unknownSku:{},noAgent:{},retired:{},replace:[]};
+  if(cfg.omniFrom){plan.old=lines.filter(l=>l.date<cfg.omniFrom).length;lines=lines.filter(l=>l.date>=cfg.omniFrom)}
   const have=new Set(allEntries.filter(e=>e.kind==="raise"&&e.orderNo).map(e=>e.orderNo+"|"+e.product));
   for(const l of lines){const a=omniAgent(l.omniAgent);const p=skuMap[l.sku];
     if(!a){plan.noAgent[l.omniAgent]=(plan.noAgent[l.omniAgent]||0)+l.cartons;continue}
@@ -583,7 +584,7 @@ function openOmni(){
   const fmtT=o=>Object.entries(o||{}).map(([p,q])=>q+" × "+esc(p)).join(", ");
   const draw=()=>{plan=omniPlan(lines,skuMap,keep);const A=sumBy(plan.add),R=sumBy(plan.replace);
     const names=[...new Set([...Object.keys(A),...Object.keys(R)])];
-    let h=`<p class="muted small">${lines.length} order lines from ${fmtDate(plan.lo)} to ${fmtDate(plan.hi)}.</p>`;
+    let h=`<p class="muted small">${lines.length-plan.old} order lines from ${fmtDate(plan.lo)} to ${fmtDate(plan.hi)}.${plan.old?` ${plan.old} placed before the fresh start on ${fmtDate(cfg.omniFrom)} were left out.`:""}</p>`;
     h+=names.map(a=>{const tA=Object.values(A[a]||{}).reduce((x,y)=>x+y,0),tR=Object.values(R[a]||{}).reduce((x,y)=>x+y,0);
       return `<div class="item"><div class="main"><strong>${esc(a)}: ${tA} cartons raised</strong><span class="small">${fmtT(A[a])}</span>${tR?`<span class="muted small">Replaces ${tR} typed by hand: ${fmtT(R[a])}</span>`:""}</div></div>`}).join("");
     if(!plan.add.length)h+=`<div class="note">Nothing new to add. ${plan.skipDup?plan.skipDup+" order lines are already in the book.":""}</div>`;

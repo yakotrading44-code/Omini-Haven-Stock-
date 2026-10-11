@@ -105,7 +105,7 @@ To update by hand instead: paste in the new code and click **Save**. Then go to 
 
 Instead of typing each raised order, Nana can import Omni's **Orders Placed Details** export. In Omni, export the month's orders (take off the brand filter so every product is included). In the app, on the Overview tab, tap **Import from Omni** and choose the file.
 
-The app shows what it will add for each agent before anything changes. Raises already typed by hand for the same days are listed too and will be replaced, because the Omni orders cover them; untick any you want to keep. Orders already in the book are skipped, so importing the same month again later is safe. If Omni has a product the app doesn't know yet, the app asks which product it is and remembers the answer.
+The app shows what it will add for each agent before anything changes. Raises already typed by hand for the same days are listed too and will be replaced, because the Omni orders cover them; untick any you want to keep. Orders already in the book are skipped, so importing the same month again later is safe. After **Clear all entries**, orders placed before the day of clearing are skipped too, so a fresh start isn't pulled negative by old orders. If Omni has a product the app doesn't know yet, the app asks which product it is and remembers the answer.
 
 ## Each agent's code works on one phone
 

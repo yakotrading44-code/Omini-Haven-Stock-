@@ -549,6 +549,10 @@ function clearAllEntries(code, confirmWord) {
       book_().insertSheet(name).getRange(1, 1, last, width).setValues(values);
       sh.getRange(2, 1, last - 1, width).clearContent();
     }
+    // The fresh start date: the Omni import skips orders placed before it.
+    var cfg = config_() || {};
+    cfg.omniFrom = Utilities.formatDate(new Date(), book_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+    settingsSheet_().getRange('B2').setValue(JSON.stringify(cfg));
     return readAll_(me);
   });
 }
