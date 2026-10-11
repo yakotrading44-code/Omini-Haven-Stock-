@@ -339,22 +339,63 @@ function addEntries(code, list) {
     });
     checkStock_(list);
     checkRaises_(list);
-    var rows = list.map(function (e) {
-      e.by = me.name;
-      e.id = Utilities.getUuid();
-      return rowOf_(e);
-    });
-    if (rows.length) {
-      var start = sh.getLastRow() + 1;
-      sh.getRange(start, 1, rows.length, COLS.length).setNumberFormat('@');
-      // keep number columns numeric
-      ['cartons', 'amount', 'omni'].forEach(function (c) {
-        sh.getRange(start, COLS.indexOf(c) + 1, rows.length, 1).setNumberFormat('0.##');
-      });
-      sh.getRange(start, 1, rows.length, COLS.length).setValues(rows);
-    }
+    appendRows_(sh, list, me);
     notifyIssues_(me, list || []);
     return readAll_(me);
+  });
+}
+
+function appendRows_(sh, list, me) {
+  var rows = list.map(function (e) {
+    e.by = me.name;
+    e.id = Utilities.getUuid();
+    return rowOf_(e);
+  });
+  if (!rows.length) return;
+  var start = sh.getLastRow() + 1;
+  sh.getRange(start, 1, rows.length, COLS.length).setNumberFormat('@');
+  // keep number columns numeric
+  ['cartons', 'amount', 'omni'].forEach(function (c) {
+    sh.getRange(start, COLS.indexOf(c) + 1, rows.length, 1).setNumberFormat('0.##');
+  });
+  sh.getRange(start, 1, rows.length, COLS.length).setValues(rows);
+}
+
+// Nana only: records the orders in an Omni "Orders Placed" export as raises.
+// Each order line is added once (same Omni order number and product is skipped), and the raises
+// listed in replaceIds (ones typed by hand for the same agents and days) are removed first.
+// The stock check is skipped on purpose: Omni is the record of what was raised, and a negative
+// balance afterwards shows a delivery that was never recorded.
+function importOmni(code, list, replaceIds) {
+  var me = whoIs_(code);
+  if (me.role !== 'manager') deny_('only Nana can import from Omni.');
+  return withLock_(function () {
+    var sh = entriesSheet_();
+    var values = sh.getDataRange().getValues();
+    var idx = headIndex_(values[0] || COLS);
+    var drop = {};
+    (replaceIds || []).forEach(function (id) { drop[String(id)] = true; });
+    var have = {};
+    for (var r = values.length - 1; r >= 1; r--) {
+      var e = toEntry_(values[r], idx);
+      if (e.kind !== 'raise') continue;
+      if (drop[String(e.id)] && !e.customer) { sh.deleteRow(r + 1); continue; }
+      if (e.orderNo) have[e.orderNo + '|' + e.product] = true;
+    }
+    var now = new Date().toISOString();
+    var add = (list || []).filter(function (e) {
+      var key = String(e.orderNo || '') + '|' + e.product;
+      if (!e.orderNo || !e.agent || !e.product || !(Number(e.cartons) > 0) || have[key]) return false;
+      have[key] = true;
+      return true;
+    }).map(function (e) {
+      return { kind: 'raise', date: String(e.date), agent: canon_(e.agent), product: String(e.product), cartons: Number(e.cartons),
+               orderNo: String(e.orderNo), note: 'From Omni export' + (e.status ? ' (' + e.status + ')' : ''), createdAt: now };
+    });
+    appendRows_(sh, add, me);
+    var out = readAll_(me);
+    out.imported = add.length;
+    return out;
   });
 }
 

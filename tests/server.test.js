@@ -146,4 +146,20 @@ test('phone lock: an agent code works only on the first phone; Nana can unlock i
   G.getData('W1|a'); G.getData('W1|b'); G.getData('M1|x'); G.getData('M1|y');
 });
 
+test('omni import: only Nana; each order line once; replaces raises typed by hand', () => {
+  G.addEntries('W1', [{ kind: 'receive', product: 'SPO', cartons: 50, date: '2026-10-01' }]);
+  G.addEntries('W1', [{ kind: 'issue', agent: 'Deborah', product: 'SPO', cartons: 40, date: '2026-10-01', status: 'pending' }]);
+  G.addEntries('M1', [{ kind: 'raise', agent: 'Deborah', product: 'SPO', cartons: 15, date: '2026-10-05', note: 'typed' }]);
+  const typed = G.getData('M1').entries.find(e => e.note === 'typed');
+  const lines = [{ agent: 'Deborah', product: 'SPO', cartons: 10, date: '2026-10-05', orderNo: '111', status: 'Delivered' },
+                 { agent: 'Deborah', product: 'SPO', cartons: 14, date: '2026-10-06', orderNo: '112' }];
+  denied(() => G.importOmni('W1', lines, []), /only Nana/);
+  const out = G.importOmni('M1', lines, [typed.id]);
+  assert.strictEqual(out.imported, 2);
+  const raises = () => G.getData('M1').entries.filter(e => e.kind === 'raise' && e.agent === 'Deborah' && e.product === 'SPO');
+  assert.deepStrictEqual(raises().map(e => e.cartons).sort(), [10, 14]);
+  assert.strictEqual(G.importOmni('M1', lines, []).imported, 0);
+  assert.strictEqual(raises().length, 2);
+});
+
 console.log(`\n${passed} tests passed`);

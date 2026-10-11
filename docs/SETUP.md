@@ -101,6 +101,12 @@ From then on:
 
 To update by hand instead: paste in the new code and click **Save**. Then go to **Deploy > Manage deployments**, click the pencil, set **Version: New version**, and click **Deploy**.
 
+## Importing raised orders from Omni
+
+Instead of typing each raised order, Nana can import Omni's **Orders Placed Details** export. In Omni, export the month's orders (take off the brand filter so every product is included). In the app, on the Overview tab, tap **Import from Omni** and choose the file.
+
+The app shows what it will add for each agent before anything changes. Raises already typed by hand for the same days are listed too and will be replaced, because the Omni orders cover them; untick any you want to keep. Orders already in the book are skipped, so importing the same month again later is safe. If Omni has a product the app doesn't know yet, the app asks which product it is and remembers the answer.
+
 ## Each agent's code works on one phone
 
 The first phone an agent opens the app on is the only phone their code works on. Anyone who tries the same code on another phone, or in a private browser window, is refused. The **Locked to phone** column on the Codes tab shows which agents are locked.

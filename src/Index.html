@@ -388,7 +388,7 @@ function renderManager(){
       <td>${r.unexplained==null?"—":r.unexplained===0?`<span class="pill good">Matches</span>`:`<span class="pill bad">Off by ${r.unexplained}</span>`}</td></tr>`).join("")}
     </tbody></table></div><p class="muted small">"Last check" compares Frank's count with the Omni figure he noted that day, after allowing for cartons not raised. It should read Matches.</p></section>`;
   h+=weekTable("Weekly movement",addDays(weekOf,6));
-  h+=`<section><h3>Record</h3><div class="actions"><button class="btn" data-form="mraise">Raised in Omni<small>an agent's orders, from the Omni app</small></button></div></section>`;
+  h+=`<section><h3>Record</h3><div class="actions"><button class="btn" data-form="mraise">Raised in Omni<small>an agent's orders, from the Omni app</small></button><button class="btn alt" data-form="omni">Import from Omni<small>the Orders Placed export</small></button></div></section>`;
   h+=`<section><h3>Products and agents</h3><div class="actions"><button class="btn alt" data-form="product">Add a product</button><button class="btn alt" data-form="agent">Add or retire an agent</button></div></section>`;
   h+=`<section><h3>Start fresh</h3><p class="muted small">Removes every entry from the app, for example at the start of a new month. A copy is kept in the Sheet first.</p><div class="actions"><button class="btn alt" data-form="clear">Clear all entries</button></div></section>`;
   if(bookInfo)h+=`<p class="muted small">Every entry is saved to the Google Sheet <a href="${esc(bookInfo.url)}" target="_blank" rel="noopener">${esc(bookInfo.name)}</a>, on the Entries tab. People's codes are on its Codes tab.</p>`;
@@ -419,6 +419,7 @@ function opt(list,sel,lab){return list.map(x=>`<option value="${esc(x)}"${x===se
 function pname(p){const nm=(cfg.names||{})[p];return nm?p+" · "+nm:p}
 function customersOf(a){return [...new Set(entries.filter(e=>e.agent===a&&e.customer).map(e=>e.customer))].sort()}
 function openForm(kind){
+  if(kind==="omni"){openOmni();return}
   if(!canWrite){toast("You can view this book but not add to it. Ask Nana to give you edit access.");return}
   const c=$("#sheetCard");const agentSel=`<label>Agent<select id="f_agent">${opt(activeAgents())}</select></label>`;
   const prod=(id="f_product")=>`<label>Product<select id="${id}">${opt(cfg.products,null,pname)}</select></label>`;
@@ -545,6 +546,69 @@ function writeError(e){
   return "Couldn't save. Check your connection and try again."
 }
 function closeForm(){$("#sheet").hidden=true;$("#sheetCard").innerHTML=""}
+/* ---------- import from Omni ---------- */
+// Reads Omni's "Orders Placed Details" export. Each order line becomes a raise for that agent, dated by the order date.
+const OMNI_SKUS={INDOCSUP1201:"SPO",FCO62078:"HMO",FCO67001:"BFO",BFC280g:"BFC",IND0C72:"OC"};
+function loadXlsx(){return window.XLSX?Promise.resolve():new Promise((res,rej)=>{const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";sc.onload=res;sc.onerror=()=>rej("Couldn't load the spreadsheet reader. Check your connection and try again.");document.head.appendChild(sc)})}
+function omniDate(v){if(typeof v==="number")return new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10);
+  const t=String(v||"").trim();let m=t.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[0];m=t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`:""}
+function omniAgent(name){const key=String(name||"").replace(/\s+/g," ").trim().toLowerCase();if(!key)return null;
+  const all=cfg.agents||[];let a=all.find(x=>x.name.toLowerCase()===key);if(a)return a;
+  const f=all.filter(x=>x.name.split(" ")[0].toLowerCase()===key.split(" ")[0]);return f.length===1?f[0]:null}
+function omniLines(rows){
+  const hi=rows.findIndex(r=>r.map(String).includes("OrderID")&&r.map(String).includes("SkuCode"));
+  if(hi<0)throw"This doesn't look like Omni's Orders Placed export. It needs the OrderID, SkuCode and Qty Placed columns.";
+  const H=rows[hi].map(x=>String(x).trim()),col=k=>H.indexOf(k);
+  const c={id:col("OrderID"),date:col("OrderDate"),st:col("OrderStatus"),sku:col("SkuCode"),nm:col("SkuName"),q:col("Qty Placed"),ag:col("AgentName")};
+  if(c.q<0||c.ag<0||c.date<0)throw"The export is missing the OrderDate, Qty Placed or AgentName column.";
+  return rows.slice(hi+1).filter(r=>r[c.id]&&n(r[c.q])>0&&r[c.ag]).map(r=>({orderNo:String(r[c.id]).trim(),date:omniDate(r[c.date]),status:String(r[c.st]||""),sku:String(r[c.sku]||"").trim(),skuName:String(r[c.nm]||""),cartons:n(r[c.q]),omniAgent:String(r[c.ag]).trim()}))}
+function omniPlan(lines,skuMap,keep){
+  const plan={add:[],skipDup:0,unknownSku:{},noAgent:{},retired:{},replace:[]};
+  const have=new Set(allEntries.filter(e=>e.kind==="raise"&&e.orderNo).map(e=>e.orderNo+"|"+e.product));
+  for(const l of lines){const a=omniAgent(l.omniAgent);const p=skuMap[l.sku];
+    if(!a){plan.noAgent[l.omniAgent]=(plan.noAgent[l.omniAgent]||0)+l.cartons;continue}
+    if(a.active===false){plan.retired[a.name]=(plan.retired[a.name]||0)+l.cartons;continue}
+    if(!p){if(p!=="")(plan.unknownSku[l.sku]=plan.unknownSku[l.sku]||{name:l.skuName,cartons:0}).cartons+=l.cartons;continue}
+    if(have.has(l.orderNo+"|"+p)){plan.skipDup++;continue}
+    have.add(l.orderNo+"|"+p);plan.add.push({...l,agent:a.name,product:p})}
+  const dates=lines.map(l=>l.date).filter(Boolean).sort(),lo=dates[0],hi=dates.at(-1);
+  const ids=new Set(lines.map(l=>l.orderNo)),agents=new Set(plan.add.map(x=>x.agent)),prods=new Set(plan.add.map(x=>x.product));
+  plan.replace=allEntries.filter(e=>e.kind==="raise"&&!e.customer&&agents.has(e.agent)&&prods.has(e.product)&&e.date>=lo&&e.date<=hi&&!(e.orderNo&&ids.has(e.orderNo))&&!keep.has(e.id));
+  plan.kept=allEntries.filter(e=>keep.has(e.id));plan.lo=lo;plan.hi=hi;return plan}
+function openOmni(){
+  const c=$("#sheetCard");let lines=null,skuMap={...OMNI_SKUS,...(cfg.omniSkus||{})},keep=new Set(),plan=null;
+  c.innerHTML=`<form id="oForm" class="lines" novalidate><h2>Import from Omni</h2><p class="muted small">In Omni, export <strong>Orders Placed Details</strong> for the month (take off the brand filter so every product is included), then choose the file here. Orders already in the book are skipped, so importing the same month again is safe.</p><label>Omni export (.xlsx)<input type="file" id="o_file" accept=".xlsx,.xls,.csv"></label><div id="o_prev"></div><div class="err" id="o_err"></div><div class="formbar"><button type="button" class="btn alt slim" id="cancel">Cancel</button><button class="btn slim" type="submit" id="save" disabled>Import</button></div></form>`;
+  $("#sheet").hidden=false;$("#cancel").onclick=closeForm;
+  const sumBy=list=>{const t={};list.forEach(x=>{t[x.agent]=t[x.agent]||{};t[x.agent][x.product]=(t[x.agent][x.product]||0)+n(x.cartons)});return t};
+  const fmtT=o=>Object.entries(o||{}).map(([p,q])=>q+" × "+esc(p)).join(", ");
+  const draw=()=>{plan=omniPlan(lines,skuMap,keep);const A=sumBy(plan.add),R=sumBy(plan.replace);
+    const names=[...new Set([...Object.keys(A),...Object.keys(R)])];
+    let h=`<p class="muted small">${lines.length} order lines from ${fmtDate(plan.lo)} to ${fmtDate(plan.hi)}.</p>`;
+    h+=names.map(a=>{const tA=Object.values(A[a]||{}).reduce((x,y)=>x+y,0),tR=Object.values(R[a]||{}).reduce((x,y)=>x+y,0);
+      return `<div class="item"><div class="main"><strong>${esc(a)}: ${tA} cartons raised</strong><span class="small">${fmtT(A[a])}</span>${tR?`<span class="muted small">Replaces ${tR} typed by hand: ${fmtT(R[a])}</span>`:""}</div></div>`}).join("");
+    if(!plan.add.length)h+=`<div class="note">Nothing new to add. ${plan.skipDup?plan.skipDup+" order lines are already in the book.":""}</div>`;
+    else if(plan.skipDup)h+=`<p class="muted small">${plan.skipDup} order lines are already in the book and will be skipped.</p>`;
+    if(plan.replace.length||plan.kept.length)h+=`<details><summary class="small">Raises typed by hand for these days (${plan.replace.length} to replace)</summary><div class="list">${[...plan.replace,...plan.kept].map(e=>`<label class="item small"><span>${esc(e.agent)}: ${n(e.cartons)} × ${esc(e.product)}, ${fmtDate(e.date)}${e.note?` <span class="muted">${esc(e.note)}</span>`:""}</span><input type="checkbox" data-rep="${e.id}" ${keep.has(e.id)?"":"checked"} aria-label="Replace" style="width:22px;height:22px"></label>`).join("")}</div><p class="muted small">Ticked rows are removed, because the Omni orders above cover them. Untick any you want to keep.</p></details>`;
+    for(const [sku,u] of Object.entries(plan.unknownSku))h+=`<label class="small">Which product is <strong>${esc(u.name||sku)}</strong> (${u.cartons} cartons)?<select data-sku="${esc(sku)}"><option value="">Choose…</option>${opt(cfg.products,null,pname)}<option value="-">Skip it</option></select></label>`;
+    for(const [a,q] of Object.entries(plan.retired))h+=`<p class="muted small">${esc(a)} is retired in the app, so their ${q} cartons were left out. Bring them back under Agents to include them.</p>`;
+    for(const [a,q] of Object.entries(plan.noAgent))h+=`<p class="muted small">No agent called "${esc(a)}" in the app, so their ${q} cartons were left out.</p>`;
+    $("#o_prev").innerHTML=`<div class="list">${h}</div>`;$("#save").disabled=!plan.add.length&&!plan.replace.length;
+    $("#o_prev").querySelectorAll("[data-rep]").forEach(b=>b.onchange=()=>{b.checked?keep.delete(b.dataset.rep):keep.add(b.dataset.rep);draw()});
+    $("#o_prev").querySelectorAll("[data-sku]").forEach(sel=>sel.onchange=()=>{skuMap[sel.dataset.sku]=sel.value==="-"?"":sel.value;draw()});
+  };
+  $("#o_file").onchange=async()=>{$("#o_err").textContent="";$("#o_prev").innerHTML='<p class="muted small">Reading…</p>';
+    try{await loadXlsx();const f=$("#o_file").files[0];const wb=XLSX.read(await f.arrayBuffer(),{type:"array"});
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:""});
+      lines=omniLines(rows);keep=new Set();draw()}
+    catch(e){$("#o_prev").innerHTML="";$("#o_err").textContent=typeof e==="string"?e:"Couldn't read that file: "+(e&&e.message||e)}};
+  $("#oForm").onsubmit=async ev=>{ev.preventDefault();if(!plan)return;$("#save").disabled=true;
+    try{const learned={};for(const k in skuMap)if(OMNI_SKUS[k]!==skuMap[k]&&skuMap[k]!==undefined)learned[k]=skuMap[k];
+      if(JSON.stringify(learned)!==JSON.stringify(cfg.omniSkus||{}))await saveConfig({...cfg,omniSkus:learned});
+      const d=await call("importOmni",plan.add.map(({agent,product,cartons,date,orderNo,status})=>({agent,product,cartons,date,orderNo,status})),plan.replace.map(e=>e.id));
+      apply(d);closeForm();toast(`Imported ${d.imported} Omni order lines`+(plan.replace.length?`, replaced ${plan.replace.length} typed by hand`:""))}
+    catch(e){$("#save").disabled=false;$("#o_err").textContent=writeError(e)}};
+}
+
 async function saveConfig(next){apply(await call("saveConfig",next))}
 
 /* ---------- events ---------- */
