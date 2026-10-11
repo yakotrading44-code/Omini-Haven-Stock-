@@ -105,6 +105,10 @@ input,select{font:inherit;padding:10px 11px;border:1px solid var(--line);border-
 <div id="toast" class="toast" hidden></div>
 
 <script>
+// If the app's code fails, say so on screen instead of staying on "Connecting".
+window.onerror=function(msg,src,line,col){var el=document.getElementById("status");if(el)el.textContent="The app hit a problem: "+msg+" (line "+line+":"+col+"). Send Claude a screenshot of this.";};
+</script>
+<script>
 (function(){
 const DEFAULT_CONFIG={
   products:["OC", "SPO", "BFO", "HMO", "BFC", "MIX", "SPC", "HMC", "CF 45G", "CP 25G", "CF 300G", "ATSOMO", "HERO PACK", "CF 450G"],
@@ -684,6 +688,7 @@ function apply(d){allEntries=d.entries||[];if(d.config)cfg={...DEFAULT_CONFIG,..
 async function load(fromForm){
   if(pending)return;
   const slow=setTimeout(()=>{if(!loaded)$("#status").textContent="Still connecting… the stock book is slow to answer. Close the app and open it again in a minute."},25000);
+  if(!loaded)$("#status").textContent="Asking the stock book…";
   try{const d=await call("getData");clearTimeout(slow);if(!pending)apply(d)}
   catch(e){clearTimeout(slow);const m=String(e&&e.message||e);
     if(m.indexOf("ACCESS")>=0){needCode=true;who=null;loaded=false;allEntries=[];render();const why=m.slice(m.indexOf("ACCESS:")+7).trim();if(fromForm||/phone|retired|open it again/.test(why))setTimeout(()=>{const ce=$("#codeErr");if(ce)ce.textContent=/wrong code|enter your code/.test(why)?"That code is not right. Check with Nana.":why},0)}
