@@ -163,4 +163,12 @@ test('omni import: only Nana; each order line once; replaces raises typed by han
   assert.strictEqual(raises().length, 2);
 });
 
+test('page code has no "//" outside comments (Google strips comments when serving and cuts such lines)', () => {
+  const html = require('fs').readFileSync(__dirname + '/../src/Index.html', 'utf8');
+  html.split(/<script>/).slice(1).map(x => x.split('</script>')[0]).forEach(js => js.split('\n').forEach((l, i) => {
+    const t = l.replace(/^\s*\/\/.*$/, '').replace(/^\s*\/\*.*\*\/\s*$/, '').replace(/\)\{ \/\/ .*$/, '');
+    assert.ok(!t.includes('//') && !t.includes('/*') && !t.includes('$&'), 'line ' + (i + 1) + ': ' + l.slice(0, 80));
+  }));
+});
+
 console.log(`\n${passed} tests passed`);
