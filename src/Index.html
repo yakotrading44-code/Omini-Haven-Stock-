@@ -195,8 +195,10 @@ function stockLeftHtml(rows){
     return {...r,out,days,state}}).sort((a,b)=>({out:0,low:1,unknown:2,ok:3}[a.state]-{out:0,low:1,unknown:2,ok:3}[b.state])||(a.days??1e9)-(b.days??1e9));
   if(!list.length)return "";
   const low=list.filter(r=>r.state==="out"||r.state==="low");
+  const counted=list.filter(r=>r.avail!=null),total=counted.reduce((t,r)=>t+Math.max(r.avail,0),0),uncounted=list.length-counted.length;
   const pill=r=>r.state==="out"?`<span class="pill bad">Out of stock</span>`:r.state==="low"?`<span class="pill warn">Reorder</span>`:r.state==="unknown"?`<span class="pill plain">Not counted</span>`:`<span class="pill good">OK</span>`;
-  return `<section><h3>Left in the warehouse</h3>${low.length?`<div class="note bad">Running low: ${low.map(r=>`${esc(r.p)} (${r.avail<=0?"none left":r.avail+" left"})`).join(", ")}. Time to reorder.</div>`:""}
+  return `<section><div class="strip">${stat("Cartons left in the warehouse",total,uncounted?`all products together. ${uncounted} product${uncounted>1?"s are":" is"} not counted yet, so not included.`:"all products together","hl")}</div>
+    <h3>What's left, by product</h3>${low.length?`<div class="note bad">Running low: ${low.map(r=>`${esc(r.p)} (${r.avail<=0?"none left":r.avail+" left"})`).join(", ")}. Time to reorder.</div>`:""}
     <div class="tbl"><table><thead><tr><th>Product</th><th>Left</th><th>Lasts about</th></tr></thead><tbody>
     ${list.map(r=>`<tr><td>${esc(r.p)} ${pill(r)}<div class="muted small">${esc((cfg.names||{})[r.p]||"")}</div></td><td><strong>${r.avail==null?"—":r.avail}</strong></td><td>${r.days==null?"—":r.days+(r.days===1?" day":" days")}<div class="muted small">${r.out} out in 2 weeks</div></td></tr>`).join("")}
     </tbody></table></div><p class="muted small">Left = Frank's last count, plus cartons received and returned since, minus cartons given to agents. "Reorder" shows when what's left would run out within ${LOW_DAYS} days at the pace of the last two weeks.</p></section>`;
@@ -386,7 +388,7 @@ function renderManager(){
   const books=ag.map(a=>[a,agentBook(a)]);
   const disputes=entries.filter(e=>e.kind==="issue"&&e.status==="disputed");
   const unexpl=rows.filter(r=>r.unexplained!=null&&r.unexplained!==0);
-  let h=`<section><h2>Overview</h2><div class="strip">
+  let h=`<section><h2>Overview</h2></section>`+stockLeftHtml(rows)+`<section><div class="strip">
     ${stat("Cartons not raised",books.reduce((t,[,b])=>t+b.withMe,0),"the gap between Omni and the warehouse","hl")}
     ${stat("Out on credit",books.reduce((t,[,b])=>t+b.onCredit,0),"cartons customers owe")}
     ${stat("Unsold with agents",books.reduce((t,[,b])=>t+b.inHand,0),"not raised, not on credit")}
@@ -394,7 +396,6 @@ function renderManager(){
   ${disputes.length?`<div class="note bad">${disputes.length} deliver${disputes.length>1?"ies are":"y is"} disputed. Settle ${disputes.length>1?"them":"it"} below.</div>`:""}
   ${unexpl.length?`<div class="note bad">At the last count, ${unexpl.map(r=>`${esc(r.p)} is off by ${r.unexplained}`).join(", ")} after allowing for cartons not raised. Those cartons are missing or an entry was skipped.</div>`:""}
   </section>`;
-  h+=stockLeftHtml(rows);
   h+=disputesHtml(true);
   h+=waitingHtml();
   h+=`<section><h3>Each agent</h3><div class="tbl"><table><thead><tr><th>Agent</th><th>Taken</th><th>Raised</th><th>Returned</th><th>Not raised</th><th>On credit</th><th>Paid, not raised</th><th>Unsold</th><th>Oldest credit</th></tr></thead><tbody>
