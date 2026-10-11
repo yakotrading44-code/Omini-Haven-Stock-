@@ -683,10 +683,11 @@ function apply(d){allEntries=d.entries||[];if(d.config)cfg={...DEFAULT_CONFIG,..
   $("#status").textContent=(who?who.name.split(" ")[0]+" · ":"")+allEntries.length+" entries · updated "+new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});render()}
 async function load(fromForm){
   if(pending)return;
-  try{const d=await call("getData");if(!pending)apply(d)}
-  catch(e){const m=String(e&&e.message||e);
+  const slow=setTimeout(()=>{if(!loaded)$("#status").textContent="Still connecting… the stock book is slow to answer. Close the app and open it again in a minute."},25000);
+  try{const d=await call("getData");clearTimeout(slow);if(!pending)apply(d)}
+  catch(e){clearTimeout(slow);const m=String(e&&e.message||e);
     if(m.indexOf("ACCESS")>=0){needCode=true;who=null;loaded=false;allEntries=[];render();const why=m.slice(m.indexOf("ACCESS:")+7).trim();if(fromForm||/phone|retired|open it again/.test(why))setTimeout(()=>{const ce=$("#codeErr");if(ce)ce.textContent=/wrong code|enter your code/.test(why)?"That code is not right. Check with Nana.":why},0)}
-    else $("#status").textContent="Couldn't reach the stock book. Check your connection; it will retry."}
+    else{$("#status").textContent="Couldn't reach the stock book. Check your connection; it will retry."+(m&&m!=="undefined"?" ("+m.slice(0,120)+")":"")}}
 }
 me=store("ohDevice")||("d"+Math.random().toString(36).slice(2,10));store("ohDevice",me);
 accessCode=store("ohCode");
