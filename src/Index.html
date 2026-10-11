@@ -185,6 +185,22 @@ function lastCount(p,upto){
 function notRaised(p,upto){ // all agents, all-time up to date
   return sum(e=>e.product===p&&e.date<=upto&&e.kind==="issue")-sum(e=>e.product===p&&e.date<=upto&&(e.kind==="raise"||e.kind==="ret"))
 }
+// What's left in the warehouse, lowest first, with roughly how many days it lasts at the last two weeks' pace.
+const LOW_DAYS=7;
+function stockLeftHtml(rows){
+  const from=addDays(today(),-13),list=rows.filter(r=>r.avail!=null||sum(e=>e.product===r.p&&e.kind==="issue")).map(r=>{
+    const out=sum(e=>e.product===r.p&&e.kind==="issue"&&e.date>=from&&!/carried over/i.test(e.note||""))-sum(e=>e.product===r.p&&e.kind==="ret"&&e.date>=from);
+    const perDay=out>0?out/14:0,days=r.avail!=null&&perDay?Math.floor(r.avail/perDay):null;
+    const state=r.avail==null?"unknown":r.avail<=0?"out":days!=null&&days<LOW_DAYS?"low":"ok";
+    return {...r,out,days,state}}).sort((a,b)=>({out:0,low:1,unknown:2,ok:3}[a.state]-{out:0,low:1,unknown:2,ok:3}[b.state])||(a.days??1e9)-(b.days??1e9));
+  if(!list.length)return "";
+  const low=list.filter(r=>r.state==="out"||r.state==="low");
+  const pill=r=>r.state==="out"?`<span class="pill bad">Out of stock</span>`:r.state==="low"?`<span class="pill warn">Reorder</span>`:r.state==="unknown"?`<span class="pill plain">Not counted</span>`:`<span class="pill good">OK</span>`;
+  return `<section><h3>Left in the warehouse</h3>${low.length?`<div class="note bad">Running low: ${low.map(r=>`${esc(r.p)} (${r.avail<=0?"none left":r.avail+" left"})`).join(", ")}. Time to reorder.</div>`:""}
+    <div class="tbl"><table><thead><tr><th>Product</th><th>Left</th><th>Lasts about</th></tr></thead><tbody>
+    ${list.map(r=>`<tr><td>${esc(r.p)} ${pill(r)}<div class="muted small">${esc((cfg.names||{})[r.p]||"")}</div></td><td><strong>${r.avail==null?"—":r.avail}</strong></td><td>${r.days==null?"—":r.days+(r.days===1?" day":" days")}<div class="muted small">${r.out} out in 2 weeks</div></td></tr>`).join("")}
+    </tbody></table></div><p class="muted small">Left = Frank's last count, plus cartons received and returned since, minus cartons given to agents. "Reorder" shows when what's left would run out within ${LOW_DAYS} days at the pace of the last two weeks.</p></section>`;
+}
 function warehouseRow(p){
   const c=lastCount(p);
   const after=k=>sum(e=>e.product===p&&e.kind===k&&(!c||e.date>c.date));
@@ -378,6 +394,7 @@ function renderManager(){
   ${disputes.length?`<div class="note bad">${disputes.length} deliver${disputes.length>1?"ies are":"y is"} disputed. Settle ${disputes.length>1?"them":"it"} below.</div>`:""}
   ${unexpl.length?`<div class="note bad">At the last count, ${unexpl.map(r=>`${esc(r.p)} is off by ${r.unexplained}`).join(", ")} after allowing for cartons not raised. Those cartons are missing or an entry was skipped.</div>`:""}
   </section>`;
+  h+=stockLeftHtml(rows);
   h+=disputesHtml(true);
   h+=waitingHtml();
   h+=`<section><h3>Each agent</h3><div class="tbl"><table><thead><tr><th>Agent</th><th>Taken</th><th>Raised</th><th>Returned</th><th>Not raised</th><th>On credit</th><th>Paid, not raised</th><th>Unsold</th><th>Oldest credit</th></tr></thead><tbody>
