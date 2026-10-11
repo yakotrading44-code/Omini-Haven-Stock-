@@ -106,7 +106,10 @@ input,select{font:inherit;padding:10px 11px;border:1px solid var(--line);border-
 
 <script>
 // If the app's code fails, say so on screen instead of staying on "Connecting".
-window.onerror=function(msg,src,line,col){var el=document.getElementById("status");if(el)el.textContent="The app hit a problem: "+msg+" (line "+line+":"+col+"). Send Claude a screenshot of this.";};
+window.onerror=function(msg,src,line,col){var el=document.getElementById("status");if(!el)return;var near="";
+  try{var sc=[].filter.call(document.scripts,function(x){return x.textContent.indexOf("const DEFAULT"+"_CONFIG")>=0})[0];var L=(sc&&sc.textContent||"").split("\n");
+    var m=/identifier '([^']+)'/.exec(msg),w=m?m[1]:"";L.forEach(function(t,i){if(w&&t.substr(col-1,w.length)===w)near+=" [#"+(i+1)+"] "+t.slice(Math.max(0,col-70),col+30);});}catch(e){}
+  el.textContent="The app hit a problem: "+msg+" (line "+line+":"+col+")."+near+" Send Claude a screenshot of this.";};
 </script>
 <script>
 (function(){
@@ -649,7 +652,7 @@ document.addEventListener("click",async ev=>{
       $("#sheet").hidden=false;$("#cancel").onclick=closeForm;$("#dForm").onsubmit=async e=>{e.preventDefault();const dn=$("#d_n").value;if(dn===""){$("#d_err").textContent="Enter the number of cartons you took.";return}
         const p={status:"disputed",disputeCartons:n(dn),disputeNote:$("#d_note").value.trim()};later(()=>Object.assign(findE(id)||{},p),"updateEntry",id,p);const de=findE(id);
         const num=waNum(phones.Nana);if(!num||!de){closeForm();toast("Sent to Nana and Frank");return}
-        const msg=`Hi Nana, this is ${who.name.split(" ")[0]}. Frank recorded ${n(de.cartons)} x ${de.product} for me on ${fmtDate(de.date)}, but I took ${n(dn)}.${p.disputeNote?" "+p.disputeNote.replace(/[^.!?]$/,"$&."):""} Please check so we can settle it.${appUrl?"\n"+appUrl:""}`;
+        const msg=`Hi Nana, this is ${who.name.split(" ")[0]}. Frank recorded ${n(de.cartons)} x ${de.product} for me on ${fmtDate(de.date)}, but I took ${n(dn)}.${p.disputeNote?" "+p.disputeNote+(/[.!?]$/.test(p.disputeNote)?"":"."):""} Please check so we can settle it.${appUrl?"\n"+appUrl:""}`;
         card.innerHTML=`<div class="lines"><h2>Sent to Nana and Frank</h2><p>Let Nana know on WhatsApp so you can settle it quickly.</p><a class="btn" href="https://wa.me/${num}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Tell Nana on WhatsApp<small>from your phone</small></a><div class="formbar"><button type="button" class="btn alt slim" id="waDone">Done</button></div></div>`;
         $("#waDone").onclick=closeForm;card.querySelector("a.btn").addEventListener("click",()=>setTimeout(closeForm,300))}}
     if(a.dataset.act==="settle"){
