@@ -87,7 +87,8 @@ test('disputes: agent disputes once, Frank may only accept the agent number, Nan
 });
 
 test('delete: only Nana or whoever entered it', () => {
-  const frankEntry = G.getData('W1').entries.find(e => e.kind === 'issue' && e.agent === 'Deborah');
+  G.addEntries('W1', [{ kind: 'issue', agent: 'Deborah', product: 'OC', cartons: 2, date: '2026-10-08' }]);
+  const frankEntry = G.getData('W1').entries.find(e => e.kind === 'issue' && e.agent === 'Deborah' && e.status === 'pending');
   denied(() => G.deleteEntry('D1', frankEntry.id), /viewing only/);
   G.deleteEntry('W1', frankEntry.id);
 });
@@ -161,6 +162,20 @@ test('omni import: only Nana; each order line once; replaces raises typed by han
   assert.deepStrictEqual(raises().map(e => e.cartons).sort(), [10, 14]);
   assert.strictEqual(G.importOmni('M1', lines, []).imported, 0);
   assert.strictEqual(raises().length, 2);
+});
+
+test('Frank can remove his own delivery only until the agent confirms or disputes it', () => {
+  G.addEntries('W1', [{ kind: 'issue', agent: 'Deborah', product: 'HMO', cartons: 3, date: '2026-10-09' },
+                      { kind: 'issue', agent: 'Deborah', product: 'HMO', cartons: 4, date: '2026-10-09' }]);
+  const mine = c => G.getData('W1').entries.find(e => e.kind === 'issue' && e.product === 'HMO' && e.cartons === c);
+  G.deleteEntry('W1', mine(3).id);
+  assert.ok(!mine(3));
+  const id = mine(4).id;
+  G.updateEntry('D1', id, { status: 'confirmed' });
+  denied(() => G.deleteEntry('W1', id), /already confirmed/);
+  assert.ok(mine(4));
+  G.deleteEntry('M1', id);
+  assert.ok(!mine(4));
 });
 
 test('page code has no "//" outside comments (Google strips comments when serving and cuts such lines)', () => {

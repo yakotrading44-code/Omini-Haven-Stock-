@@ -544,6 +544,8 @@ function deleteEntry(code, id) {
       if (me.role !== 'manager') {
         var e = entryAt_(sh, r);
         if (e.by !== me.name || !visible_(me, e)) deny_('only Nana or the person who entered it can delete it.');
+        // Once the agent has confirmed or disputed a delivery, only Nana can change it (by settling a dispute).
+        if (e.kind === 'issue' && e.status && e.status !== 'pending') deny_(first_(e.agent) + ' has already ' + (e.status === 'disputed' ? 'disputed' : 'confirmed') + ' this delivery. ' + (e.status === 'disputed' ? 'Nana settles it.' : 'If it is wrong, ' + first_(e.agent) + ' can tell Nana.'));
       }
       sh.deleteRow(r);
     }
