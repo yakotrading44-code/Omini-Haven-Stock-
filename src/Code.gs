@@ -314,6 +314,25 @@ function mail_(to, subject, lines) {
 function first_(name) { return String(name || '').split(' ')[0]; }
 function nameFor_(role) { var p = people_().filter(function (x) { return x.role === role; })[0]; return p ? p.name : ''; }
 
+// Run this from the Apps Script editor (pick "diagnose" next to Debug, press Run) when the app won't open.
+// It does what the app does when Nana opens it and logs how long each step takes.
+function diagnose() {
+  var t = Date.now();
+  function step(label, fn) {
+    var s = Date.now();
+    try { var r = fn(); console.log('OK   ' + label + ' (' + (Date.now() - s) + ' ms)' + (r !== undefined ? ': ' + r : '')); }
+    catch (err) { console.log('FAIL ' + label + ': ' + err); }
+  }
+  step('Codes tab', function () { var sh = codesSheet_(); return sh.getLastRow() + ' rows x ' + sh.getLastColumn() + ' columns'; });
+  step('Entries tab', function () { var sh = entriesSheet_(); return sh.getLastRow() + ' rows x ' + sh.getLastColumn() + ' columns'; });
+  step('Settings', function () { return JSON.stringify(config_()).length + ' characters'; });
+  step('WhatsApp column', function () { ensureWhatsAppColumn_(); });
+  step('Starting numbers', function () { fillStartingNumbers_(); });
+  step('Phone locks', function () { return JSON.stringify(phoneLocks_()); });
+  step('Read the book', function () { return JSON.stringify(readAll_({ name: nameFor_('manager') || 'Nana', role: 'manager' })).length + ' characters'; });
+  console.log('Done in ' + (Date.now() - t) + ' ms');
+}
+
 // ---- called from the app ----
 
 function getData(code) {
