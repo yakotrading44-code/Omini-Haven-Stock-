@@ -107,6 +107,10 @@ Instead of typing each raised order, Nana can import Omni's **Orders Placed Deta
 
 The app shows what it will add for each agent before anything changes. Raises already typed by hand for the same days are listed too and will be replaced, because the Omni orders cover them; untick any you want to keep. Orders already in the book are skipped, so importing the same month again later is safe. After **Clear all entries**, orders placed on or before the day of clearing are skipped too: the fresh-start counts are taken at the end of that day, so they already include its sales. If Omni has a product the app doesn't know yet, the app asks which product it is and remembers the answer.
 
+## Agents who buy direct (no Omni)
+
+Some agents, like Prince from Cup Sales, buy straight from the warehouse and never raise orders in Omni. When you add one under **Add or retire an agent**, tick "Buys straight from the warehouse". You can also tap **Buys direct** next to an existing agent. Frank gives them cartons as usual. What they take counts as sold when it leaves the warehouse, so it never shows as "not raised" and isn't part of the Warehouse vs Omni check.
+
 ## Each agent's code works on one phone
 
 The first phone an agent opens the app on is the only phone their code works on. Anyone who tries the same code on another phone, or in a private browser window, is refused. The **Locked to phone** column on the Codes tab shows which agents are locked.
