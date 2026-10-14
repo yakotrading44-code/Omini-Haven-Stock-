@@ -50,7 +50,7 @@ Only Frank and Nana enter things. Peter, Deborah and Musah open the app to **vie
 | Nana | Daily, from the Omni app | **Raised in Omni** (on the Overview, or on an agent's page): pick the agent, add every product and cartons raised, and the Omni order number if you want. The app refuses more than the agent holds. |
 | Nana (optional) | When you want to track a customer who owes | On the agent's page: **Gave cartons on credit**, then **Customer paid** when they pay. |
 | Frank | Every Saturday, after the last carton goes out | **Count the warehouse** for each product, and type in what the Omni app shows. |
-| Nana | Monday | Read the summary email. Open the app and check that "Last check" reads **Matches** for every product. |
+| Nana | Monday | Read the summary email. Open the app and check that "Status" in "Warehouse vs Omni system" reads **Balanced** for every product. |
 
 Past entries are on the **Entries** tab of each page. The **By date** tab shows a table of cartons taken (or raised, or returned) per agent per day, with From and To dates to filter.
 
