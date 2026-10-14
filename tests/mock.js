@@ -19,7 +19,7 @@ Sheet.prototype={
 };
 function makeBook(tabs){
   const sheets={};for(const k in tabs)sheets[k]=new Sheet(k,tabs[k]);
-  return {sheets,getSheetByName:n=>sheets[n]||null,insertSheet:n=>(sheets[n]=new Sheet(n,[])),getName:()=>'Omni Haven Stock Book',getUrl:()=>'https://docs.google.com/spreadsheets/d/x',getSpreadsheetTimeZone:()=>'Africa/Accra'};
+  return {sheets,getSheetByName:n=>sheets[n]||null,getSheets:()=>Object.keys(sheets).map(n=>({getName:()=>n})),insertSheet:n=>(sheets[n]=new Sheet(n,[])),getName:()=>'Omni Haven Stock Book',getUrl:()=>'https://docs.google.com/spreadsheets/d/x',getSpreadsheetTimeZone:()=>'Africa/Accra'};
 }
 const sent=[];function load(book){
   const ctx={SpreadsheetApp:{getActiveSpreadsheet:()=>book},Utilities:{getUuid:()=>crypto.randomUUID(),formatDate:(d)=>d.toISOString().slice(0,10)},

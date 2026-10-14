@@ -135,7 +135,7 @@ function readAll_(me) {
     .map(function (r) { var e = toEntry_(r, idx); if (e.agent) e.agent = canon_(e.agent, cfg); return e; })
     .filter(function (e) { return visible_(me, e); });
   var out = { entries: entries, config: config_(), me: me };
-  if (me.role === 'manager') { out.book = { name: book_().getName(), url: book_().getUrl() }; try { out.locks = phoneLocks_(); } catch (err) { out.locks = {}; } }
+  if (me.role === 'manager') { out.book = { name: book_().getName(), url: book_().getUrl() }; try { out.locks = phoneLocks_(); } catch (err) { out.locks = {}; } try { out.backups = backups_(); } catch (err) { out.backups = []; } }
   if (me.role === 'manager' || me.role === 'warehouse') { out.phones = phones_(cfg); out.appUrl = appUrl_(); }
   // Agents only get Nana's number, for the "Tell Nana on WhatsApp" button after they dispute a delivery.
   if (me.role === 'agent') {
@@ -555,26 +555,57 @@ function deleteEntry(code, id) {
 
 // Empties the Entries tab for a fresh start. A copy of every entry is kept on a new Backup tab first,
 // so nothing is lost if this was a mistake. Products, agents and codes are not touched.
+// Copies the Entries tab to a new "Backup <date time>" tab. Returns its name, or '' when there is nothing to copy.
+function backupEntries_(sh) {
+  var last = sh.getLastRow(), width = sh.getLastColumn();
+  if (last < 2) return '';
+  var base = 'Backup ' + Utilities.formatDate(new Date(), book_().getSpreadsheetTimeZone(), 'yyyy-MM-dd HH:mm');
+  var name = base;
+  for (var i = 2; book_().getSheetByName(name); i++) name = base + ' (' + i + ')';
+  var values = sh.getRange(1, 1, last, width).getValues();
+  book_().insertSheet(name).getRange(1, 1, last, width).setValues(values);
+  return name;
+}
+
+// The backup tabs, newest first.
+function backups_() {
+  return book_().getSheets().map(function (s) { return s.getName(); })
+    .filter(function (n) { return /^Backup /.test(n); }).sort().reverse();
+}
+
 function clearAllEntries(code, confirmWord) {
   var me = whoIs_(code);
   if (me.role !== 'manager') deny_('only Nana can clear the book.');
   if (String(confirmWord || '').trim().toUpperCase() !== 'CLEAR') deny_('type CLEAR to confirm.');
   return withLock_(function () {
     var sh = entriesSheet_();
-    var last = sh.getLastRow(), width = sh.getLastColumn();
-    if (last > 1) {
-      var base = 'Backup ' + Utilities.formatDate(new Date(), book_().getSpreadsheetTimeZone(), 'yyyy-MM-dd HH:mm');
-      var name = base;
-      for (var i = 2; book_().getSheetByName(name); i++) name = base + ' (' + i + ')';
-      var values = sh.getRange(1, 1, last, width).getValues();
-      book_().insertSheet(name).getRange(1, 1, last, width).setValues(values);
-      sh.getRange(2, 1, last - 1, width).clearContent();
-    }
+    if (backupEntries_(sh)) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
     // Fresh start: the counts are taken at the end of the day of clearing, so they already reflect that
     // day's sales. The Omni import therefore only takes orders from the next day on.
     var cfg = config_() || {};
     cfg.omniFrom = Utilities.formatDate(new Date(Date.now() + 864e5), book_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
     settingsSheet_().getRange('B2').setValue(JSON.stringify(cfg));
+    return readAll_(me);
+  });
+}
+
+// Puts a backup tab's entries back in the book. What is in the book now is saved as a new backup first.
+function restoreBackup(code, name, confirmWord) {
+  var me = whoIs_(code);
+  if (me.role !== 'manager') deny_('only Nana can restore a backup.');
+  if (String(confirmWord || '').trim().toUpperCase() !== 'RESTORE') deny_('type RESTORE to confirm.');
+  name = String(name || '');
+  var from = /^Backup /.test(name) ? book_().getSheetByName(name) : null;
+  if (!from) deny_('that backup tab is gone from the Sheet.');
+  return withLock_(function () {
+    var values = from.getDataRange().getValues();
+    var idx = headIndex_(values.shift() || []);
+    if (idx.id == null) deny_('that tab does not look like a backup of entries.');
+    var rows = values.filter(function (r) { return r[idx.id] !== ''; })
+      .map(function (r) { return COLS.map(function (c) { var v = idx[c] == null ? '' : r[idx[c]]; return v == null ? '' : v; }); });
+    var sh = entriesSheet_();
+    if (backupEntries_(sh)) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
+    if (rows.length) sh.getRange(2, 1, rows.length, COLS.length).setValues(rows);
     return readAll_(me);
   });
 }

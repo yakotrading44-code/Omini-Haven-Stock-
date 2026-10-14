@@ -109,6 +109,23 @@ test('clear all: only Nana, needs CLEAR, keeps a backup tab', () => {
   assert.match(G.getData('M1').config.omniFrom, /^\d{4}-\d{2}-\d{2}$/);
 });
 
+test('restore backup: only Nana, needs RESTORE, saves what is there first', () => {
+  const names = G.getData('M1').backups;
+  assert.ok(names.length >= 2 && /^Backup /.test(names[0]));
+  const oldest = names[names.length - 1];
+  const want = book.sheets[oldest].lastRow() - 1;
+  G.addEntries('W1', [{ kind: 'receive', product: 'SPO', cartons: 4, date: '2026-10-07' }]);
+  denied(() => G.restoreBackup('W1', oldest, 'RESTORE'), /only Nana/);
+  denied(() => G.restoreBackup('M1', oldest, 'yes'), /RESTORE/);
+  denied(() => G.restoreBackup('M1', 'Codes', 'RESTORE'), /gone/);
+  const d = G.restoreBackup('M1', oldest, 'restore');
+  assert.strictEqual(d.entries.length, want);
+  assert.strictEqual(d.backups.length, names.length + 1);
+  assert.ok(d.entries.some(e => e.kind === 'issue' && e.agent === 'Deborah' && e.cartons === 10));
+  assert.ok(!d.entries.some(e => e.product === 'SPO' && e.cartons === 4 && e.kind === 'receive'));
+  assert.strictEqual(G.getData('P1').entries.every(e => e.agent === 'Peter Boakye'), true);
+});
+
 test('names: spacing and capitals in the Codes tab or rows still reach the right book', () => {
   book.sheets.Codes.rows.push(['deborah ', 'D2', 'agent', '']);
   G.addEntries('W1', [{ kind: 'issue', agent: 'DEBORAH', product: 'OC', cartons: 3, date: '2026-10-08', status: 'pending' }]);
