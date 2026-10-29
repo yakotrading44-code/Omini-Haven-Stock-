@@ -18,9 +18,14 @@ function doGet() {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
-function book_() { return SpreadsheetApp.getActiveSpreadsheet(); }
+// Sheet reads are the slow part of every call, so each one is kept for the rest of the call.
+// fresh_() starts a call with nothing kept; whoIs_ runs it, since every call from the app starts there.
+var memo_ = {};
+function fresh_() { memo_ = {}; }
+function book_() { return memo_.book || (memo_.book = SpreadsheetApp.getActiveSpreadsheet()); }
 
 function entriesSheet_() {
+  if (memo_.entries) return memo_.entries;
   var sh = book_().getSheetByName('Entries');
   if (!sh) {
     sh = book_().insertSheet('Entries');
@@ -29,22 +34,24 @@ function entriesSheet_() {
     // Older books have fewer columns; the new ones are added on the right.
     sh.getRange(1, 1, 1, COLS.length).setValues([COLS]);
   }
-  return sh;
+  return (memo_.entries = sh);
 }
 
 function settingsSheet_() {
+  if (memo_.settings) return memo_.settings;
   var sh = book_().getSheetByName('Settings');
   if (!sh) {
     sh = book_().insertSheet('Settings');
     sh.getRange('A1:A2').setValues([['Access codes'], ['App settings (managed by the app)']]);
     sh.getRange('B1').setValue('See the Codes tab');
   }
-  return sh;
+  return (memo_.settings = sh);
 }
 
 function newCode_() { return String(Math.floor(100000 + Math.random() * 900000)); }
 
 function codesSheet_() {
+  if (memo_.codes) return memo_.codes;
   var sh = book_().getSheetByName('Codes');
   if (!sh) {
     // First run on an older book: the old shared code in Settings B1 becomes Nana's code.
@@ -52,24 +59,36 @@ function codesSheet_() {
     if (!/^[A-Za-z0-9-]+$/.test(old)) old = newCode_();
     sh = book_().insertSheet('Codes');
     sh.getRange(1, 1, 2, 4).setNumberFormat('@').setValues([['Person', 'Code', 'Role', 'Email'], ['Nana (manager)', old, 'manager', '']]);
+    memo_.codes = sh;
     ensureCodes_(config_() || {});
   }
-  return sh;
+  return (memo_.codes = sh);
 }
 
+// The Codes tab as text, read once per call. Anything that writes to the Codes tab calls codesChanged_().
+function codesRows_() { return memo_.codeRows || (memo_.codeRows = codesSheet_().getDataRange().getDisplayValues()); }
+function codesChanged_() { delete memo_.codeRows; }
+
 function config_() {
-  var text = String(settingsSheet_().getRange('B2').getValue() || '');
-  try { return text ? JSON.parse(text) : null; } catch (err) { return null; }
+  if (!('config' in memo_)) {
+    var text = String(settingsSheet_().getRange('B2').getValue() || '');
+    try { memo_.config = text ? JSON.parse(text) : null; } catch (err) { memo_.config = null; }
+  }
+  // A copy, so a caller that changes it can't change what the next caller reads.
+  return memo_.config ? JSON.parse(JSON.stringify(memo_.config)) : null;
 }
+function configRead_() { if (!('config' in memo_)) config_(); return memo_.config; } // read-only, no copy
+function setConfig_(config) { settingsSheet_().getRange('B2').setValue(JSON.stringify(config)); delete memo_.config; }
 
 // Turns a code into the person using it, or refuses.
 // The app sends "code|phone id"; the phone id is made once per phone and kept in its browser.
 function whoIs_(code) {
+  fresh_();
   var parts = String(code || '').split('|');
   code = parts[0].trim();
   var device = String(parts[1] || '').trim();
   if (!code) throw new Error('ACCESS: enter your code.');
-  var rows = codesSheet_().getDataRange().getDisplayValues().slice(1);
+  var rows = codesRows_().slice(1);
   for (var i = 0; i < rows.length; i++) {
     var name = String(rows[i][0]).trim();
     if (!name || String(rows[i][1]).trim() !== code) continue;
@@ -92,7 +111,7 @@ function whoIs_(code) {
 function canon_(name, cfg) {
   var key = String(name || '').replace(/\s+/g, ' ').trim().toLowerCase();
   if (!key) return '';
-  var a = (((cfg || config_()) || {}).agents || []).filter(function (x) { return String(x.name).replace(/\s+/g, ' ').trim().toLowerCase() === key; })[0];
+  var a = (((cfg || configRead_()) || {}).agents || []).filter(function (x) { return String(x.name).replace(/\s+/g, ' ').trim().toLowerCase() === key; })[0];
   return a ? a.name : String(name).replace(/\s+/g, ' ').trim();
 }
 
@@ -134,7 +153,7 @@ function readAll_(me) {
   var entries = values.filter(function (r) { return r[idx.id] !== ''; })
     .map(function (r) { var e = toEntry_(r, idx); if (e.agent) e.agent = canon_(e.agent, cfg); return e; })
     .filter(function (e) { return visible_(me, e); });
-  var out = { entries: entries, config: config_(), me: me };
+  var out = { entries: entries, config: cfg, me: me };
   if (me.role === 'manager') { out.book = { name: book_().getName(), url: book_().getUrl() }; try { out.locks = phoneLocks_(); } catch (err) { out.locks = {}; } try { out.backups = backups_(); } catch (err) { out.backups = []; } }
   if (me.role === 'manager' || me.role === 'warehouse') { out.phones = phones_(cfg); out.appUrl = appUrl_(); }
   // Agents only get Nana's number, for the "Tell Nana on WhatsApp" button after they dispute a delivery.
@@ -185,13 +204,13 @@ function deny_(msg) { throw new Error('DENIED: ' + msg); }
 // Makes sure Frank and every active agent has a code, so Nana only has to read them off the Codes tab.
 function ensureCodes_(config) {
   var sh = codesSheet_();
-  var have = sh.getDataRange().getDisplayValues().slice(1).map(function (r) { return String(r[0]).trim(); });
+  var have = codesRows_().slice(1).map(function (r) { return String(r[0]).trim(); });
   var add = [];
   if (config.warehouse && have.indexOf(config.warehouse) < 0) add.push([config.warehouse, newCode_(), 'warehouse']);
   (config.agents || []).forEach(function (a) {
     if (a.active !== false && have.indexOf(a.name) < 0) add.push([a.name, newCode_(), 'agent']);
   });
-  if (add.length) sh.getRange(sh.getLastRow() + 1, 1, add.length, 3).setNumberFormat('@').setValues(add);
+  if (add.length) { sh.getRange(sh.getLastRow() + 1, 1, add.length, 3).setNumberFormat('@').setValues(add); codesChanged_(); }
 }
 
 // ---- email (Gmail) ----
@@ -199,7 +218,7 @@ function ensureCodes_(config) {
 
 // A column headed "WhatsApp" (anywhere on the Codes tab) holds each person's WhatsApp number.
 function people_() {
-  var rows = codesSheet_().getDataRange().getDisplayValues();
+  var rows = codesRows_();
   var wa = (rows[0] || []).map(function (h) { return String(h).trim().toLowerCase(); }).indexOf('whatsapp');
   return rows.slice(1)
     .filter(function (r) { return String(r[0]).trim(); })
@@ -208,9 +227,10 @@ function people_() {
 
 // Adds the WhatsApp column next to Email the first time Nana opens the app.
 function ensureWhatsAppColumn_() {
-  var sh = codesSheet_();
-  var head = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0].map(function (h) { return String(h).trim().toLowerCase(); });
+  var head = (codesRows_()[0] || []).map(function (h) { return String(h).trim().toLowerCase(); });
   if (head.indexOf('whatsapp') >= 0) return;
+  var sh = codesSheet_();
+  codesChanged_();
   sh.insertColumnBefore(5);
   sh.getRange(1, 5).setValue('WhatsApp');
   sh.getRange(2, 5, Math.max(sh.getLastRow() - 1, 1), 1).setNumberFormat('@');
@@ -224,10 +244,11 @@ var LOCK_HEADER = 'Locked to phone';
 function lockColumn_() {
   ensureWhatsAppColumn_();
   var sh = codesSheet_();
-  var head = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0].map(function (h) { return String(h).trim().toLowerCase(); });
+  var head = (codesRows_()[0] || []).map(function (h) { return String(h).trim().toLowerCase(); });
   var c = head.indexOf(LOCK_HEADER.toLowerCase());
   if (c >= 0) return c + 1;
   c = head.indexOf('whatsapp') + 2;
+  codesChanged_();
   sh.insertColumnBefore(c);
   sh.getRange(1, c).setValue(LOCK_HEADER);
   sh.getRange(2, c, Math.max(sh.getLastRow() - 1, 1), 1).setNumberFormat('@');
@@ -236,16 +257,17 @@ function lockColumn_() {
 
 function checkPhone_(row, device, name) {
   if (!device) throw new Error('ACCESS: please close the app and open it again.');
-  var cell = codesSheet_().getRange(row, lockColumn_());
-  var locked = String(cell.getDisplayValue()).trim();
-  if (!locked) cell.setNumberFormat('@').setValue(device);
+  var c = lockColumn_();
+  var locked = String((codesRows_()[row - 1] || [])[c - 1] || '').trim();
+  if (!locked) { codesSheet_().getRange(row, c).setNumberFormat('@').setValue(device); codesChanged_(); }
   else if (locked !== device) throw new Error('ACCESS: ' + first_(name) + '\'s code is already in use on another phone. Ask Nana to unlock it.');
 }
 
 function phoneLocks_() {
   var c = lockColumn_(), out = {};
-  codesSheet_().getDataRange().getDisplayValues().slice(1).forEach(function (r) {
-    if (String(r[2]).trim().toLowerCase() === 'agent' && String(r[c - 1]).trim()) out[canon_(String(r[0]).trim())] = true;
+  var cfg = config_();
+  codesRows_().slice(1).forEach(function (r) {
+    if (String(r[2]).trim().toLowerCase() === 'agent' && String(r[c - 1]).trim()) out[canon_(String(r[0]).trim(), cfg)] = true;
   });
   return out;
 }
@@ -255,10 +277,11 @@ function unlockPhone(code, agent) {
   var me = whoIs_(code);
   if (me.role !== 'manager') deny_('only Nana can unlock a phone.');
   var c = lockColumn_(), sh = codesSheet_();
-  var rows = sh.getDataRange().getDisplayValues();
+  var rows = codesRows_();
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][2]).trim().toLowerCase() === 'agent' && canon_(String(rows[i][0]).trim()) === canon_(agent)) sh.getRange(i + 1, c).setValue('');
   }
+  codesChanged_();
   return readAll_(me);
 }
 
@@ -272,7 +295,7 @@ var STARTING_NUMBERS = [
 ];
 
 function fillStartingNumbers_() {
-  var sh = codesSheet_(), rows = sh.getDataRange().getDisplayValues();
+  var sh = codesSheet_(), rows = codesRows_();
   var col = (rows[0] || []).map(function (h) { return String(h).trim().toLowerCase(); }).indexOf('whatsapp');
   if (col < 0) return;
   STARTING_NUMBERS.forEach(function (n) {
@@ -281,7 +304,7 @@ function fillStartingNumbers_() {
       if (!name || String(rows[i][col]).trim()) continue;
       if (n.role ? role === n.role : (role === 'agent' && first_(name).toLowerCase() === n.first)) {
         sh.getRange(i + 1, col + 1).setNumberFormat('@').setValue(n.number);
-        rows[i][col] = n.number;
+        rows[i][col] = n.number; // codesRows_ is this same array, so it stays right
       }
     }
   });
@@ -299,7 +322,8 @@ function emailsFor_(test) {
 }
 
 function appUrl_() {
-  try { return ScriptApp.getService().getUrl() || ''; } catch (err) { return ''; }
+  if (!('url' in memo_)) { try { memo_.url = ScriptApp.getService().getUrl() || ''; } catch (err) { memo_.url = ''; } }
+  return memo_.url;
 }
 
 // Sending never blocks saving: if Gmail fails, the entry is still saved.
@@ -317,6 +341,7 @@ function nameFor_(role) { var p = people_().filter(function (x) { return x.role 
 // Run this from the Apps Script editor (pick "diagnose" next to Debug, press Run) when the app won't open.
 // It does what the app does when Nana opens it and logs how long each step takes.
 function diagnose() {
+  fresh_();
   var t = Date.now();
   function step(label, fn) {
     var s = Date.now();
@@ -421,7 +446,12 @@ function importOmni(code, list, replaceIds) {
 // An agent may only raise an order for cartons a customer has already paid for.
 function bookEntries_() {
   var cfg = config_() || {}, start = cfg.startDate || '';
-  return readAll_({ name: 'check', role: 'manager' }).entries.filter(function (e) { return !start || e.date >= start; });
+  if (!memo_.bookEntries) {
+    var values = entriesSheet_().getDataRange().getValues(), idx = headIndex_(values.shift() || COLS);
+    memo_.bookEntries = values.filter(function (r) { return r[idx.id] !== ''; })
+      .map(function (r) { var e = toEntry_(r, idx); if (e.agent) e.agent = canon_(e.agent, cfg); return e; });
+  }
+  return memo_.bookEntries.filter(function (e) { return !start || e.date >= start; });
 }
 
 // Cartons can't leave an agent's hands (credit, cash sale, return) if the agent doesn't hold them.
@@ -584,7 +614,7 @@ function clearAllEntries(code, confirmWord) {
     // day's sales. The Omni import therefore only takes orders from the next day on.
     var cfg = config_() || {};
     cfg.omniFrom = Utilities.formatDate(new Date(Date.now() + 864e5), book_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
-    settingsSheet_().getRange('B2').setValue(JSON.stringify(cfg));
+    setConfig_(cfg);
     return readAll_(me);
   });
 }
@@ -614,7 +644,7 @@ function saveConfig(code, config) {
   var me = whoIs_(code);
   if (me.role !== 'manager') deny_('only Nana can change products and agents.');
   return withLock_(function () {
-    settingsSheet_().getRange('B2').setValue(JSON.stringify(config));
+    setConfig_(config);
     ensureCodes_(config);
     return readAll_(me);
   });
@@ -630,6 +660,7 @@ function setupWeeklyEmail() {
 }
 
 function weeklySummary() {
+  fresh_();
   var me = { name: 'weekly', role: 'manager' };
   var d = readAll_(me), cfg = d.config || {}, start = cfg.startDate || '';
   var E = d.entries.filter(function (e) { return !start || e.date >= start; });
