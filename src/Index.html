@@ -659,6 +659,9 @@ function closeForm(){$("#sheet").hidden=true;$("#sheetCard").innerHTML=""}
 /* ---------- import from Omni ---------- */
 // Reads Omni's "Orders Placed Details" export. Each order line becomes a raise for that agent, dated by the order date.
 const OMNI_SKUS={INDOCSUP1201:"SPO",FCO62078:"HMO",FCO67001:"BFO",BFC280g:"BFC",IND0C72:"OC",FCR67001:"HMC",ceornfla45:"CF 45G",kellocorn450:"CF 450G"};
+// Omni sells these in smaller units than Frank's cartons: 10 strips of Cornflakes 45g, or 10 boxes of 450g, make a carton.
+const OMNI_PER_CARTON={ceornfla45:10,kellocorn450:10};
+const toCartons=(sku,q)=>Math.round(n(q)/(OMNI_PER_CARTON[sku]||1)*100)/100;
 // Omni SKU to product: the built-in list plus what Nana picked in past imports. An old "Skip it" doesn't hide a product that is now built in.
 function omniSkuMap(){const learned=Object.entries(cfg.omniSkus||{}).filter(([k,v])=>v!==""||!OMNI_SKUS[k]);return {...OMNI_SKUS,...Object.fromEntries(learned)}}
 let wvo=null;
@@ -685,7 +688,7 @@ function omniLines(rows){
   const H=rows[hi].map(x=>String(x).trim()),col=k=>H.indexOf(k);
   const c={id:col("OrderID"),date:col("OrderDate"),st:col("OrderStatus"),sku:col("SkuCode"),nm:col("SkuName"),q:col("Qty Placed"),ag:col("AgentName")};
   if(c.q<0||c.ag<0||c.date<0)throw"The export is missing the OrderDate, Qty Placed or AgentName column.";
-  return rows.slice(hi+1).filter(r=>r[c.id]&&n(r[c.q])>0&&r[c.ag]).map(r=>({orderNo:String(r[c.id]).trim(),date:omniDate(r[c.date]),status:String(r[c.st]||""),sku:String(r[c.sku]||"").trim(),skuName:String(r[c.nm]||""),cartons:n(r[c.q]),omniAgent:String(r[c.ag]).trim()}))}
+  return rows.slice(hi+1).filter(r=>r[c.id]&&n(r[c.q])>0&&r[c.ag]).map(r=>({orderNo:String(r[c.id]).trim(),date:omniDate(r[c.date]),status:String(r[c.st]||""),sku:String(r[c.sku]||"").trim(),skuName:String(r[c.nm]||""),cartons:toCartons(String(r[c.sku]||"").trim(),r[c.q]),omniAgent:String(r[c.ag]).trim()}))}
 function omniPlan(lines,skuMap,keep){
   const plan={add:[],skipDup:0,old:0,unknownSku:{},noAgent:{},retired:{},replace:[]};
   if(cfg.omniFrom){plan.old=lines.filter(l=>l.date<cfg.omniFrom).length;lines=lines.filter(l=>l.date>=cfg.omniFrom)}
@@ -741,7 +744,7 @@ function inStockLines(rows){
   const H=rows[hi].map(x=>String(x).trim()),sku=H.indexOf("skuCode"),av=H.indexOf("availableStock"),nm=H.indexOf("skuName");
   const skuMap=omniSkuMap(),stock={},other=[];
   for(const r of rows.slice(hi+1)){const k=String(r[sku]||"").trim();if(!k)continue;const p=skuMap[k];
-    if(p&&cfg.products.includes(p))stock[p]=(stock[p]||0)+n(r[av]);else other.push(String(r[nm]||k))}
+    if(p&&cfg.products.includes(p))stock[p]=(stock[p]||0)+toCartons(k,r[av]);else other.push(String(r[nm]||k))}
   return {stock,other}}
 function openInStock(){
   if(!isMgr()){toast("Only Nana can load Omni stock.");return}
