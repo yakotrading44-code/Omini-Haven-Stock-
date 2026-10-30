@@ -658,7 +658,9 @@ function writeError(e){
 function closeForm(){$("#sheet").hidden=true;$("#sheetCard").innerHTML=""}
 /* ---------- import from Omni ---------- */
 // Reads Omni's "Orders Placed Details" export. Each order line becomes a raise for that agent, dated by the order date.
-const OMNI_SKUS={INDOCSUP1201:"SPO",FCO62078:"HMO",FCO67001:"BFO",BFC280g:"BFC",IND0C72:"OC",FCR67001:"HMC"};
+const OMNI_SKUS={INDOCSUP1201:"SPO",FCO62078:"HMO",FCO67001:"BFO",BFC280g:"BFC",IND0C72:"OC",FCR67001:"HMC",ceornfla45:"CF 45G",kellocorn450:"CF 450G"};
+// Omni SKU to product: the built-in list plus what Nana picked in past imports. An old "Skip it" doesn't hide a product that is now built in.
+function omniSkuMap(){const learned=Object.entries(cfg.omniSkus||{}).filter(([k,v])=>v!==""||!OMNI_SKUS[k]);return {...OMNI_SKUS,...Object.fromEntries(learned)}}
 let wvo=null;
 // Warehouse vs Omni system as an Excel file, laid out like the table on Nana's overview.
 async function exportWvo(){if(!wvo)return;
@@ -699,7 +701,7 @@ function omniPlan(lines,skuMap,keep){
   plan.replace=allEntries.filter(e=>e.kind==="raise"&&!e.customer&&agents.has(e.agent)&&prods.has(e.product)&&e.date>=lo&&e.date<=hi&&!(e.orderNo&&ids.has(e.orderNo))&&!keep.has(e.id));
   plan.kept=allEntries.filter(e=>keep.has(e.id));plan.lo=lo;plan.hi=hi;return plan}
 function openOmni(){
-  const c=$("#sheetCard");let lines=null,skuMap={...OMNI_SKUS,...(cfg.omniSkus||{})},keep=new Set(),plan=null;
+  const c=$("#sheetCard");let lines=null,skuMap=omniSkuMap(),keep=new Set(),plan=null;
   c.innerHTML=`<form id="oForm" class="lines" novalidate><h2>Import from Omni</h2><p class="muted small">In Omni, export <strong>Orders Placed Details</strong> for the month (take off the brand filter so every product is included), then choose the file here. Orders already in the book are skipped, so importing the same month again is safe.</p><label>Omni export (.xlsx)<input type="file" id="o_file" accept=".xlsx,.xls,.csv"></label><div id="o_prev"></div><div class="err" id="o_err"></div><div class="formbar"><button type="button" class="btn alt slim" id="cancel">Cancel</button><button class="btn slim" type="submit" id="save" disabled>Import</button></div></form>`;
   $("#sheet").hidden=false;$("#cancel").onclick=closeForm;
   const sumBy=list=>{const t={};list.forEach(x=>{t[x.agent]=t[x.agent]||{};t[x.agent][x.product]=(t[x.agent][x.product]||0)+n(x.cartons)});return t};
@@ -737,7 +739,7 @@ function inStockLines(rows){
   const hi=rows.findIndex(r=>r.map(String).includes("skuCode")&&r.map(String).includes("availableStock"));
   if(hi<0)throw"This doesn't look like Omni's InStock Inventory export. It needs the skuCode and availableStock columns.";
   const H=rows[hi].map(x=>String(x).trim()),sku=H.indexOf("skuCode"),av=H.indexOf("availableStock"),nm=H.indexOf("skuName");
-  const skuMap={...OMNI_SKUS,...(cfg.omniSkus||{})},stock={},other=[];
+  const skuMap=omniSkuMap(),stock={},other=[];
   for(const r of rows.slice(hi+1)){const k=String(r[sku]||"").trim();if(!k)continue;const p=skuMap[k];
     if(p&&cfg.products.includes(p))stock[p]=(stock[p]||0)+n(r[av]);else other.push(String(r[nm]||k))}
   return {stock,other}}
