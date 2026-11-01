@@ -35,6 +35,8 @@ header.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-
 .brand{display:grid;gap:2px}
 .brand .eyebrow{font:600 12px/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .who{display:flex;gap:6px;flex-wrap:wrap}
+.who.brands{margin-top:10px}
+.who.brands .chip[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
 .chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:7px 13px;font:600 14px var(--body);cursor:pointer}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 button{font:inherit}
@@ -155,6 +157,10 @@ const KIND={issue:"Cartons given to agent",receive:"Received from supplier",ret:
   raise:"Order raised in Omni",credit:"Given on credit",payment:"Customer paid"};
 let view="book",entryType="all",byDate={kind:"issue",from:"",to:"",agent:""},allEntries=[],db=true,accessCode=null,needCode=false,me=null,who=null,bookInfo=null,backups=[],locks={},phones={},appUrl="",cfg=DEFAULT_CONFIG,entries=[],role=null,canWrite=true,loaded=false,weekOf=mondayOf(today());
 const $=s=>document.querySelector(s);
+// Kellogg's has its own tab on Nana's overview and Frank's warehouse page, so it never mixes with the Indomie figures.
+const KELLOGGS=["CF 45G","CF 450G","CP 25G","CF 300G"];
+const brandOf=p=>KELLOGGS.includes(p)?"kelloggs":"indomie";
+let brand=store("ohBrand")==="kelloggs"?"kelloggs":"indomie";
 const main=$("#main");
 
 function today(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
@@ -280,8 +286,12 @@ function render(){
   if(needCode){main.innerHTML=`<section class="panel"><h2>Enter your code</h2><p>Everyone has their own code from Nana. It opens your book only.</p><form id="codeForm" class="lines"><label>Access code<input id="codeIn" autocomplete="off"></label><div class="err" id="codeErr"></div><div class="formbar"><button class="btn slim">Open the book</button></div></form></section>`;
     $("#codeForm").onsubmit=e=>{e.preventDefault();accessCode=$("#codeIn").value.trim();store("ohCode",accessCode);load(true)};return}
   if(!loaded||!role){main.innerHTML=`<div class="empty">Loading the shared book…</div>`;return}
+  const tabbed=view==="book"&&(role==="Nana (manager)"||role===(cfg.warehouse||"Frank"))&&cfg.products.some(p=>brandOf(p)==="kelloggs");
   if(view==="entries")renderEntries();
   else if(view==="dates")renderByDate();
+  else if(tabbed){const all=cfg;cfg={...cfg,products:cfg.products.filter(p=>brandOf(p)===brand)};entries=entries.filter(e=>e.product?brandOf(e.product)===brand:brand==="indomie");
+    try{role==="Nana (manager)"?renderManager():renderFrank()}finally{cfg=all}
+    main.insertAdjacentHTML("afterbegin",`<div class="who brands" role="tablist" aria-label="Brand"><button class="chip" role="tab" aria-pressed="${brand==="indomie"}" data-brand="indomie">Indomie</button><button class="chip" role="tab" aria-pressed="${brand==="kelloggs"}" data-brand="kelloggs">Kellogg's</button></div>`)}
   else if(role==="Nana (manager)")renderManager();
   else if(role===(cfg.warehouse||"Frank"))renderFrank();
   else renderAgent(role);
@@ -471,6 +481,7 @@ function renderManager(){
   ${unexpl.length?`<div class="note bad">Total stock and System stock differ: ${unexpl.map(r=>`${esc(r.p)} by ${Math.abs(r.gap)}`).join(", ")}. Cartons are missing, an entry was skipped, or Omni orders are not imported yet.</div>`:""}
   </section>`;
   h+=disputesHtml(true);
+  if(brand==="kelloggs"&&KELLOGGS.some(p=>cfg.products.includes(p)))h+=ledgerHtml();
   h+=stockLeftHtml(rows);
   const nPend=entries.filter(e=>e.kind==="issue"&&e.status==="pending").length;
   h+=fold("waiting",`Waiting for agents to confirm (${nPend})`,waitingHtml());
@@ -665,6 +676,44 @@ const toCartons=(sku,q)=>Math.round(n(q)/(OMNI_PER_CARTON[sku]||1)*100)/100;
 // Omni SKU to product: the built-in list plus what Nana picked in past imports. An old "Skip it" doesn't hide a product that is now built in.
 function omniSkuMap(){const learned=Object.entries(cfg.omniSkus||{}).filter(([k,v])=>v!==""||!OMNI_SKUS[k]);return {...OMNI_SKUS,...Object.fromEntries(learned)}}
 let wvo=null;
+// Kellogg's day by day the way the company's Power BI report lays it out: opening, supply, sales raised in Omni (STT), closing.
+// It starts where Power BI stopped recording sales (28 Sep). Sales before Omni imports began come from the Omni exports read on 1 Nov.
+const KLEDGER={from:"2026-09-29",open:{"CF 45G":87,"CF 450G":7,"CP 25G":11,"CF 300G":7},
+  stt:{"2026-09-29":{"CF 45G":0.5},"2026-10-01":{"CF 45G":2},"2026-10-02":{"CF 450G":1},"2026-10-05":{"CF 45G":1},"2026-10-06":{"CF 45G":0.5},"2026-10-09":{"CF 45G":1},"2026-10-13":{"CF 45G":1}}};
+const PBI_NAMES={"CF 45G":"45G CF","CF 450G":"450G CF BOX","CP 25G":"25G CP","CF 300G":"300G CF BOX"};
+function ledger(){
+  const L=cfg.kLedger||KLEDGER,cut=cfg.omniFrom||"0000-00-00",prods=Object.keys(L.open),days=[],cur={...L.open},cum={},exact={};
+  const r1=x=>Math.round(x+1e-9);
+  for(let d=L.from;d<=today();d=addDays(d,1)){const row={date:d,p:{}};
+    for(const p of prods){
+      const sold=d<cut?n((L.stt[d]||{})[p]):allEntries.filter(e=>e.kind==="raise"&&e.product===p&&e.date===d).reduce((t,e)=>t+n(e.cartons),0);
+      const supply=allEntries.filter(e=>e.kind==="receive"&&e.product===p&&e.date===d).reduce((t,e)=>t+n(e.cartons),0);
+      // Power BI only takes whole cartons, so sales are rounded on the running total: half cartons pair up and the closing stock stays true.
+      const before=cum[p]||0;cum[p]=before+sold;exact[p]=(exact[p]||0)+sold;const stt=r1(cum[p])-r1(before);
+      row.p[p]={open:cur[p],supply,stt,close:cur[p]+supply-stt};cur[p]=row.p[p].close}
+    days.push(row)}
+  return {prods,days,from:L.from}}
+function ledgerHtml(){
+  const {prods,days,from}=ledger(),last=days.at(-1),os=cfg.omniStock;if(!last)return "";
+  const tot=(p,k)=>days.reduce((t,d)=>t+d.p[p][k],0);
+  const moved=[...days].reverse().filter(d=>prods.some(p=>d.p[p].stt||d.p[p].supply));
+  return `<section><h3>Kellogg's daily stock, like Power BI</h3><div class="tbl"><table><thead><tr><th>Product</th><th>Opening ${fmtDate(from)}</th><th>Supply</th><th>STT (sales)</th><th>Closing ${fmtDate(last.date)}</th><th>Omni now</th></tr></thead><tbody>
+    ${prods.map(p=>`<tr><td>${esc(PBI_NAMES[p]||p)}</td><td>${days[0].p[p].open}</td><td>${tot(p,"supply")}</td><td>${tot(p,"stt")}</td><td><strong>${last.p[p].close}</strong></td><td>${os&&os.stock&&os.stock[p]!=null?`${n(os.stock[p])}<div class="muted small">${fmtDate(os.date)}</div>`:"—"}</td></tr>`).join("")}
+    </tbody></table></div><div class="actions"><button class="btn alt slim" data-ledger>Download for Power BI<small>every day, in the Power BI layout</small></button></div>
+    <p class="muted small">Starts the day after Power BI last recorded a sale. STT is the orders raised in Omni, in whole cartons. New Omni imports and supplies are added here as you record them.</p></section>`+
+    fold("ledgerdays","Kellogg's sales and supply by day",`<section><h3>x</h3><div class="tbl"><table><thead><tr><th>Date</th><th>Product</th><th>Opening</th><th>Supply</th><th>STT</th><th>Closing</th></tr></thead><tbody>
+    ${moved.map(d=>prods.filter(p=>d.p[p].stt||d.p[p].supply).map(p=>`<tr><td>${fmtDate(d.date)}</td><td>${esc(PBI_NAMES[p]||p)}</td><td>${d.p[p].open}</td><td>${d.p[p].supply||""}</td><td>${d.p[p].stt||""}</td><td>${d.p[p].close}</td></tr>`).join("")).join("")||`<tr><td colspan="6" class="muted">No sales or supply yet.</td></tr>`}
+    </tbody></table></div><p class="muted small">Only days with a sale or a supply are listed. The download has every day.</p></section>`)}
+async function exportLedger(){
+  try{await loadXlsx();const {prods,days}=ledger();
+    const aoa=[["Attribute","","Opening Stock","Supply","Closing Stock","STT"],["Date","SKU NAME","Total","Total","Total","Total"]];
+    const dt=d=>new Date(d+"T00:00:00");
+    for(const d of [...days].reverse()){const s=k=>prods.reduce((t,p)=>t+d.p[p][k],0);
+      aoa.push([dt(d.date),"Total",s("open"),s("supply")||null,s("close"),s("stt")||null]);
+      for(const p of [...prods].sort((a,b)=>(PBI_NAMES[a]||a).localeCompare(PBI_NAMES[b]||b))){const x=d.p[p];aoa.push([dt(d.date),PBI_NAMES[p]||p,x.open,x.supply||null,x.close,x.stt||null])}}
+    const ws=XLSX.utils.aoa_to_sheet(aoa,{cellDates:true,dateNF:"dd/mm/yyyy"});ws["!cols"]=[{wch:12},{wch:14},{wch:14},{wch:10},{wch:14},{wch:8}];
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Export");XLSX.writeFile(wb,"Kelloggs Power BI "+today()+".xlsx");toast("Downloaded")}
+  catch(e){toast(typeof e==="string"?e:"Couldn't make the file: "+(e&&e.message||e))}}
 // Warehouse vs Omni system as an Excel file, laid out like the table on Nana's overview.
 async function exportWvo(){if(!wvo)return;
   try{await loadXlsx();const {rows,omniAt,counted,tot}=wvo;
@@ -813,6 +862,8 @@ async function saveConfig(next){apply(await call("saveConfig",next))}
 /* ---------- events ---------- */
 document.addEventListener("click",async ev=>{
   const vw=ev.target.closest("[data-view]");if(vw){view=vw.dataset.view;render();window.scrollTo(0,0);return}
+  const br=ev.target.closest("[data-brand]");if(br){brand=br.dataset.brand;store("ohBrand",brand);render();return}
+  if(ev.target.closest("[data-ledger]")){exportLedger();return}
   if(ev.target.id==="bd_clear"){byDate={...byDate,from:"",to:"",agent:""};render();return}
   const r=ev.target.closest("[data-role]");if(r&&isMgr()){role=r.dataset.role;store("ohRole",role);render();window.scrollTo(0,0);return}
   const f=ev.target.closest("[data-form]");if(f){openForm(f.dataset.form);return}
