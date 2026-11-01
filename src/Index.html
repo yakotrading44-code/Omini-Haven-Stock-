@@ -154,7 +154,7 @@ const DEFAULT_CONFIG={
   warehouse:"Frank"
 };
 const KIND={issue:"Cartons given to agent",receive:"Received from supplier",ret:"Returned to warehouse",count:"Warehouse count",
-  raise:"Order raised in Omni",credit:"Given on credit",payment:"Customer paid"};
+  raise:"Order raised in Omni",sample:"Taken off for sampling",credit:"Given on credit",payment:"Customer paid"};
 let view="book",entryType="all",byDate={kind:"issue",from:"",to:"",agent:""},allEntries=[],db=true,accessCode=null,needCode=false,me=null,who=null,bookInfo=null,backups=[],locks={},phones={},appUrl="",cfg=DEFAULT_CONFIG,entries=[],role=null,canWrite=true,loaded=false,weekOf=mondayOf(today());
 const $=s=>document.querySelector(s);
 // Each brand has its own tab on Nana's overview and Frank's warehouse page, so the figures never mix.
@@ -257,7 +257,7 @@ function stockLeftHtml(rows){
 function warehouseRow(p){
   const c=lastCount(p);
   const after=k=>sum(e=>e.product===p&&e.kind===k&&(!c||e.date>c.date));
-  const recv=after("receive"),iss=after("issue"),ret=after("ret");
+  const recv=after("receive"),iss=after("issue")+after("sample"),ret=after("ret");
   const avail=c?n(c.cartons)+recv-iss+ret:null;
   const nr=notRaised(p,"9999-12-31");
   const unexplained=(c&&c.omni!==""&&c.omni!=null)?n(c.omni)-n(c.cartons)-notRaised(p,c.date):null;
@@ -302,7 +302,7 @@ function render(){
   else renderAgent(role);
   main.insertAdjacentHTML("afterbegin",`<div class="who" role="tablist" aria-label="Pages"><button class="chip" role="tab" aria-pressed="${view==="book"}" data-view="book">${role==="Nana (manager)"?"Overview":role===(cfg.warehouse||"Frank")?"Warehouse":"My book"}</button><button class="chip" role="tab" aria-pressed="${view==="entries"}" data-view="entries">Entries</button><button class="chip" role="tab" aria-pressed="${view==="dates"}" data-view="dates">By date</button></div>`);
 }
-const ENTRY_TYPES={all:"Everything",issue:"Cartons given out",ret:"Returns",receive:"Received from supplier",count:"Warehouse counts",credit:"Credit",payment:"Payments",raise:"Orders raised"};
+const ENTRY_TYPES={all:"Everything",issue:"Cartons given out",ret:"Returns",receive:"Received from supplier",count:"Warehouse counts",credit:"Credit",payment:"Payments",raise:"Orders raised",sample:"Sampling"};
 function renderEntries(){
   const mine=role==="Nana (manager)"?()=>true:role===(cfg.warehouse||"Frank")?e=>["issue","receive","ret","count"].includes(e.kind):e=>e.agent===role;
   const types=Object.keys(ENTRY_TYPES).filter(k=>k==="all"||entries.some(e=>mine(e)&&e.kind===k));
@@ -461,6 +461,13 @@ document.addEventListener("toggle",ev=>{const d=ev.target;if(!d.dataset||!d.data
 // On a phone the Warehouse vs Omni table becomes one card per product, so every column shows without scrolling.
 function wcard(p,name,sys,sysDate,wh,nr,total,st){const v=x=>x==null?"—":x;
   return `<div class="wcard"><div class="wtop"><div><strong>${esc(p)}</strong>${name?` <span class="muted small">${esc(name)}</span>`:""}</div>${st}</div><div class="wnums"><div><span>System stock</span><b>${v(sys)}</b>${sysDate?`<small class="muted">${sysDate}</small>`:""}</div><div><span>Warehouse</span><b>${v(wh)}</b></div><div><span>Credit/van</span><b>${v(nr)}</b></div><div><span>Total stock</span><b>${v(total)}</b></div></div></div>`}
+// Cartons taken off for sampling stay in Omni until they are written off there, so Nana keeps a reminder until she ticks them off.
+function samplesHtml(){
+  const open=entries.filter(e=>e.kind==="sample"&&e.status!=="done");if(!open.length)return "";
+  const g={};open.forEach(e=>{const k=e.date+"|"+(e.note||"");(g[k]=g[k]||[]).push(e)});
+  return `<section><div class="note"><strong>Reminder: taken off for sampling</strong>${Object.entries(g).map(([k,L])=>{const [d,note]=k.split("|");
+    return `<div style="margin-top:8px">${fmtDate(d)}${note?", "+esc(note):""}: ${L.map(e=>n(e.cartons)+" × "+esc(e.product)).join(", ")} <button type="button" class="link" data-sampledone="${L.map(e=>e.id).join(",")}">Written off in Omni</button></div>`}).join("")}
+    <p class="small" style="margin:8px 0 0">These are out of the warehouse but Omni still counts them, so Omni shows that many more. Tap Written off in Omni once they are taken out there.</p></div></section>`}
 function renderNoBrand(mgr){
   main.innerHTML=`<section><h2>${BRANDS[brand]}</h2><p>No ${BRANDS[brand]} products in the book yet.</p>${mgr&&brand==="dano"?`<div class="actions"><button class="btn" data-adddano>Add the Dano products<small>${DANO.length} products, as Omni lists them</small></button></div><p class="muted small">${DANO.map(p=>esc(p)+": "+esc(DANO_NAMES[p])).join("<br>")}</p>`:""}</section>`}
 function renderManager(){
@@ -488,6 +495,7 @@ function renderManager(){
   ${disputes.length?`<div class="note bad">${disputes.length} deliver${disputes.length>1?"ies are":"y is"} disputed. Settle ${disputes.length>1?"them":"it"} below.</div>`:""}
   ${unexpl.length?`<div class="note bad">Total stock and System stock differ: ${unexpl.map(r=>`${esc(r.p)} by ${Math.abs(r.gap)}`).join(", ")}. Cartons are missing, an entry was skipped, or Omni orders are not imported yet.</div>`:""}
   </section>`;
+  h+=samplesHtml();
   h+=disputesHtml(true);
   if(brand==="kelloggs"&&KELLOGGS.some(p=>cfg.products.includes(p)))h+=ledgerHtml();
   h+=stockLeftHtml(rows);
@@ -511,6 +519,7 @@ function describe(e){
     case"receive":return `Received ${n(e.cartons)} × ${esc(e.product)}${e.note?" ("+esc(e.note)+")":""}`;
     case"ret":return `${who} returned ${n(e.cartons)} × ${esc(e.product)}`;
     case"count":return `Counted ${n(e.cartons)} × ${esc(e.product)}${e.omni!==""&&e.omni!=null?`, Omni showed ${n(e.omni)}`:""}`;
+    case"sample":return `${n(e.cartons)} × ${esc(e.product)} taken off for sampling${e.note?" ("+esc(e.note)+")":""}${e.status==="done"?` <span class="pill plain">written off in Omni</span>`:""}`;
     case"raise":return `${who} raised ${n(e.cartons)} × ${esc(e.product)}${e.customer?" for "+esc(e.customer):""}${e.orderNo?" · order "+esc(e.orderNo):""}`;
     case"credit":return `${who} gave ${esc(e.customer)} ${n(e.cartons)} × ${esc(e.product)} on credit${n(e.amount)?" · "+cedi(e.amount):""}`;
     case"payment":return `${esc(e.customer)} paid ${who} for ${n(e.cartons)} × ${esc(e.product)}${e.status==="cash"?" (cash sale)":""}${n(e.amount)?" · "+cedi(e.amount):""}`;
@@ -820,7 +829,7 @@ function openInStock(){
 }
 
 // Entries prepared in a spreadsheet: one row per product, with Date, Type, Agent, Product, Cartons, Omni shows, Note.
-const BULK_KINDS={given:"issue",issue:"issue",give:"issue",delivered:"issue",received:"receive",receive:"receive",supply:"receive",count:"count",counted:"count",returned:"ret",return:"ret",raised:"raise",raise:"raise"};
+const BULK_KINDS={given:"issue",issue:"issue",give:"issue",delivered:"issue",received:"receive",sample:"sample",sampling:"sample",sampled:"sample",receive:"receive",supply:"receive",count:"count",counted:"count",returned:"ret",return:"ret",raised:"raise",raise:"raise"};
 function bulkLines(rows){
   const hi=rows.findIndex(r=>r.map(x=>String(x).trim().toLowerCase()).includes("type")&&r.map(x=>String(x).trim().toLowerCase()).includes("product"));
   if(hi<0)throw"This file needs a header row with Date, Type, Agent, Product and Cartons.";
@@ -832,7 +841,7 @@ function bulkLines(rows){
   rows.slice(hi+1).forEach((r,i)=>{if(!r.some(x=>String(x).trim()!==""))return;const line=hi+i+2;
     const kind=BULK_KINDS[String(r[c.type]||"").trim().toLowerCase()],product=prodOf(r[c.product]),date=omniDate(r[c.date]),qs=String(r[c.q]??"").trim();
     const agent=c.agent<0?"":agentOf(r[c.agent]);
-    if(!kind){bad.push(`Row ${line}: type "${r[c.type]}" is not Given, Received, Count, Returned or Raised.`);return}
+    if(!kind){bad.push(`Row ${line}: type "${r[c.type]}" is not Given, Received, Count, Returned, Raised or Sampling.`);return}
     if(!product){bad.push(`Row ${line}: no product called "${r[c.product]}" in the app.`);return}
     if(!date){bad.push(`Row ${line}: the date "${r[c.date]}" isn't a date.`);return}
     if(qs===""||!(n(qs)>0||(kind==="count"&&n(qs)===0))){bad.push(`Row ${line}: no cartons.`);return}
@@ -844,9 +853,9 @@ function bulkLines(rows){
   return {out,bad}}
 function openBulk(){
   const c=$("#sheetCard");let docs=null;
-  c.innerHTML=`<form id="bForm" class="lines" novalidate><h2>Import entries</h2><p class="muted small">Choose the entries file Claude prepared, or one of your own with the columns Date, Type (Given, Received, Count, Returned or Raised), Agent, Product, Cartons, Omni shows and Note. Rows already in the book are skipped.</p><label>Entries file (.xlsx or .csv)<input type="file" id="b_file" accept=".xlsx,.xls,.csv"></label><div id="b_prev"></div><div class="err" id="b_err"></div><div class="formbar"><button type="button" class="btn alt slim" id="cancel">Cancel</button><button class="btn slim" type="submit" id="save" disabled>Import</button></div></form>`;
+  c.innerHTML=`<form id="bForm" class="lines" novalidate><h2>Import entries</h2><p class="muted small">Choose the entries file Claude prepared, or one of your own with the columns Date, Type (Given, Received, Count, Returned, Raised or Sampling), Agent, Product, Cartons, Omni shows and Note. Rows already in the book are skipped.</p><label>Entries file (.xlsx or .csv)<input type="file" id="b_file" accept=".xlsx,.xls,.csv"></label><div id="b_prev"></div><div class="err" id="b_err"></div><div class="formbar"><button type="button" class="btn alt slim" id="cancel">Cancel</button><button class="btn slim" type="submit" id="save" disabled>Import</button></div></form>`;
   $("#sheet").hidden=false;$("#cancel").onclick=closeForm;
-  const label={issue:"Given to agents",receive:"Received from supplier",count:"Counts",ret:"Returned",raise:"Raised in Omni"};
+  const label={issue:"Given to agents",receive:"Received from supplier",count:"Counts",ret:"Returned",raise:"Raised in Omni",sample:"Taken off for sampling"};
   $("#b_file").onchange=async()=>{$("#b_err").textContent="";$("#b_prev").innerHTML='<p class="muted small">Reading…</p>';$("#save").disabled=true;
     try{await loadXlsx();const f=$("#b_file").files[0];const wb=XLSX.read(await f.arrayBuffer(),{type:"array"});
       const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:""});
@@ -872,6 +881,7 @@ document.addEventListener("click",async ev=>{
   const vw=ev.target.closest("[data-view]");if(vw){view=vw.dataset.view;render();window.scrollTo(0,0);return}
   const br=ev.target.closest("[data-brand]");if(br){brand=br.dataset.brand;store("ohBrand",brand);render();return}
   if(ev.target.closest("[data-ledger]")){exportLedger();return}
+  const sd=ev.target.closest("[data-sampledone]");if(sd){try{for(const id of sd.dataset.sampledone.split(","))apply(await call("updateEntry",id,{status:"done"}));toast("Ticked off")}catch(e){toast(String(e&&e.message||e))}return}
   if(ev.target.closest("[data-adddano]")){const add=DANO.filter(p=>!cfg.products.includes(p));try{await saveConfig({...cfg,products:[...cfg.products,...add],names:{...(cfg.names||{}),...DANO_NAMES}});toast("Added the Dano products")}catch(e){toast(String(e&&e.message||e))}return}
   if(ev.target.id==="bd_clear"){byDate={...byDate,from:"",to:"",agent:""};render();return}
   const r=ev.target.closest("[data-role]");if(r&&isMgr()){role=r.dataset.role;store("ohRole",role);render();window.scrollTo(0,0);return}

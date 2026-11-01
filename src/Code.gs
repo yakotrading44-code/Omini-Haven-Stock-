@@ -681,7 +681,7 @@ function weeklySummary() {
     var c = counts[counts.length - 1];
     if (!c) return;
     var after = function (k) { return tot(function (e) { return e.product === p && e.kind === k && e.date > c.date; }); };
-    lines.push('  ' + p + ': ' + (Number(c.cartons) + after('receive') - after('issue') + after('ret')) + ' (counted ' + c.cartons + ' on ' + c.date + ')');
+    lines.push('  ' + p + ': ' + (Number(c.cartons) + after('receive') - after('issue') - after('sample') + after('ret')) + ' (counted ' + c.cartons + ' on ' + c.date + ')');
   });
   var pend = E.filter(function (e) { return e.kind === 'issue' && e.status === 'pending'; }).length;
   var disp = E.filter(function (e) { return e.kind === 'issue' && e.status === 'disputed'; });
