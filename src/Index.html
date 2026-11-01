@@ -157,10 +157,13 @@ const KIND={issue:"Cartons given to agent",receive:"Received from supplier",ret:
   raise:"Order raised in Omni",credit:"Given on credit",payment:"Customer paid"};
 let view="book",entryType="all",byDate={kind:"issue",from:"",to:"",agent:""},allEntries=[],db=true,accessCode=null,needCode=false,me=null,who=null,bookInfo=null,backups=[],locks={},phones={},appUrl="",cfg=DEFAULT_CONFIG,entries=[],role=null,canWrite=true,loaded=false,weekOf=mondayOf(today());
 const $=s=>document.querySelector(s);
-// Kellogg's has its own tab on Nana's overview and Frank's warehouse page, so it never mixes with the Indomie figures.
+// Each brand has its own tab on Nana's overview and Frank's warehouse page, so the figures never mix.
 const KELLOGGS=["CF 45G","CF 450G","CP 25G","CF 300G"];
-const brandOf=p=>KELLOGGS.includes(p)?"kelloggs":"indomie";
-let brand=store("ohBrand")==="kelloggs"?"kelloggs":"indomie";
+const DANO_NAMES={"DANO COF":"Dano Milk Powder Coffee 35g ×80","DANO STR":"Dano Milk Powder Strawberry 35g ×80","DANO CHOC":"Dano Milk Powder Chocolate 35g ×80","CC 22G":"Dano Cool Cow 22g ×160","CC 12G":"Dano Cool Cow 12g ×260"};
+const DANO=Object.keys(DANO_NAMES);
+const BRANDS={indomie:"Indomie",kelloggs:"Kellogg's",dano:"Dano"};
+const brandOf=p=>KELLOGGS.includes(p)?"kelloggs":DANO.includes(p)?"dano":"indomie";
+let brand=BRANDS[store("ohBrand")]?store("ohBrand"):"indomie";
 const main=$("#main");
 
 function today(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
@@ -286,12 +289,14 @@ function render(){
   if(needCode){main.innerHTML=`<section class="panel"><h2>Enter your code</h2><p>Everyone has their own code from Nana. It opens your book only.</p><form id="codeForm" class="lines"><label>Access code<input id="codeIn" autocomplete="off"></label><div class="err" id="codeErr"></div><div class="formbar"><button class="btn slim">Open the book</button></div></form></section>`;
     $("#codeForm").onsubmit=e=>{e.preventDefault();accessCode=$("#codeIn").value.trim();store("ohCode",accessCode);load(true)};return}
   if(!loaded||!role){main.innerHTML=`<div class="empty">Loading the shared book…</div>`;return}
-  const tabbed=view==="book"&&(role==="Nana (manager)"||role===(cfg.warehouse||"Frank"))&&cfg.products.some(p=>brandOf(p)==="kelloggs");
+  const isMgrPage=role==="Nana (manager)",brands=Object.keys(BRANDS).filter(b=>b==="indomie"||cfg.products.some(p=>brandOf(p)===b)||(isMgrPage&&b==="dano"));
+  if(!brands.includes(brand))brand="indomie";
+  const tabbed=view==="book"&&(isMgrPage||role===(cfg.warehouse||"Frank"))&&brands.length>1;
   if(view==="entries")renderEntries();
   else if(view==="dates")renderByDate();
   else if(tabbed){const all=cfg;cfg={...cfg,products:cfg.products.filter(p=>brandOf(p)===brand)};entries=entries.filter(e=>e.product?brandOf(e.product)===brand:brand==="indomie");
-    try{role==="Nana (manager)"?renderManager():renderFrank()}finally{cfg=all}
-    main.insertAdjacentHTML("afterbegin",`<div class="who brands" role="tablist" aria-label="Brand"><button class="chip" role="tab" aria-pressed="${brand==="indomie"}" data-brand="indomie">Indomie</button><button class="chip" role="tab" aria-pressed="${brand==="kelloggs"}" data-brand="kelloggs">Kellogg's</button></div>`)}
+    try{!cfg.products.length?renderNoBrand(isMgrPage):isMgrPage?renderManager():renderFrank()}finally{cfg=all}
+    main.insertAdjacentHTML("afterbegin",`<div class="who brands" role="tablist" aria-label="Brand">${brands.map(b=>`<button class="chip" role="tab" aria-pressed="${brand===b}" data-brand="${b}">${BRANDS[b]}</button>`).join("")}</div>`)}
   else if(role==="Nana (manager)")renderManager();
   else if(role===(cfg.warehouse||"Frank"))renderFrank();
   else renderAgent(role);
@@ -456,6 +461,8 @@ document.addEventListener("toggle",ev=>{const d=ev.target;if(!d.dataset||!d.data
 // On a phone the Warehouse vs Omni table becomes one card per product, so every column shows without scrolling.
 function wcard(p,name,sys,sysDate,wh,nr,total,st){const v=x=>x==null?"—":x;
   return `<div class="wcard"><div class="wtop"><div><strong>${esc(p)}</strong>${name?` <span class="muted small">${esc(name)}</span>`:""}</div>${st}</div><div class="wnums"><div><span>System stock</span><b>${v(sys)}</b>${sysDate?`<small class="muted">${sysDate}</small>`:""}</div><div><span>Warehouse</span><b>${v(wh)}</b></div><div><span>Credit/van</span><b>${v(nr)}</b></div><div><span>Total stock</span><b>${v(total)}</b></div></div></div>`}
+function renderNoBrand(mgr){
+  main.innerHTML=`<section><h2>${BRANDS[brand]}</h2><p>No ${BRANDS[brand]} products in the book yet.</p>${mgr&&brand==="dano"?`<div class="actions"><button class="btn" data-adddano>Add the Dano products<small>${DANO.length} products, as Omni lists them</small></button></div><p class="muted small">${DANO.map(p=>esc(p)+": "+esc(DANO_NAMES[p])).join("<br>")}</p>`:""}</section>`}
 function renderManager(){
   const allRows=cfg.products.map(warehouseRow),rows=allRows.filter(r=>r.count||r.nr||r.iss||r.recv||r.ret),idle=allRows.filter(r=>!rows.includes(r)).map(r=>r.p);
   const ag=agentNames().filter(a=>entries.some(e=>e.agent===a));
@@ -467,6 +474,7 @@ function renderManager(){
   const stale=rows.some(r=>r.count&&!r.fresh);
   const counted=rows.filter(r=>r.avail!=null),tot=f=>counted.reduce((t,r)=>t+f(r),0);
   wvo={rows,omniAt,counted,tot};
+  if(!rows.length){main.innerHTML=`<section><h2>Overview</h2><div class="note">No ${esc(cfg.products.join(", "))} counted or moved yet. Ask Frank to count them with <strong>Count the warehouse</strong>, and load today's InStock export with <strong>Omni stock now</strong>. This page then compares the two.</div></section><section><h3>Record</h3><div class="actions"><button class="btn alt" data-form="instock">Omni stock now<small>the InStock Inventory export</small></button><button class="btn alt" data-form="bulk">Import entries<small>a file of deliveries, supplies and counts</small></button></div></section>`;return}
   let h=`<section><h2>Overview</h2></section><section><h3>Warehouse vs Omni system</h3><div class="tbl wvo-tbl"><table><thead><tr><th>Product</th><th>System stock</th><th>Stock at warehouse</th><th>Stock on credit/van</th><th>Total stock</th><th>Status</th></tr></thead><tbody>
     ${rows.map(r=>`<tr><td>${esc(r.p)}<div class="muted small">${esc((cfg.names||{})[r.p]||"")}</div></td><td>${omniAt(r)==null?"—":`${omniAt(r)}<div class="muted small">${fmtDate(r.sysDate)}</div>`}</td><td>${r.avail==null?`<span class="pill warn">Not counted</span>`:r.avail}</td><td>${r.nr}</td><td><strong>${r.systemShould==null?"—":r.systemShould}</strong></td><td>${status(r)}</td></tr>`).join("")}
     ${counted.length>1?`<tr><td><strong>Total</strong></td><td><strong>${counted.every(r=>omniAt(r)!=null)?tot(omniAt):"—"}</strong></td><td><strong>${tot(r=>r.avail)}</strong></td><td><strong>${tot(r=>r.nr)}</strong></td><td><strong>${tot(r=>r.systemShould)}</strong></td><td></td></tr>`:""}
@@ -669,7 +677,7 @@ function writeError(e){
 function closeForm(){$("#sheet").hidden=true;$("#sheetCard").innerHTML=""}
 /* ---------- import from Omni ---------- */
 // Reads Omni's "Orders Placed Details" export. Each order line becomes a raise for that agent, dated by the order date.
-const OMNI_SKUS={INDOCSUP1201:"SPO",FCO62078:"HMO",FCO67001:"BFO",BFC280g:"BFC",IND0C72:"OC",FCR67001:"HMC",ceornfla45:"CF 45G",kellocorn450:"CF 450G"};
+const OMNI_SKUS={INDOCSUP1201:"SPO",FCO62078:"HMO",FCO67001:"BFO",BFC280g:"BFC",IND0C72:"OC",FCR67001:"HMC",ceornfla45:"CF 45G",kellocorn450:"CF 450G",DANOC35:"DANO COF",danost35:"DANO STR",danompchoc:"DANO CHOC",danocc22:"CC 22G",danocc12:"CC 12G"};
 // Omni sells these in smaller units than Frank's cartons: 10 strips of Cornflakes 45g, or 10 boxes of 450g, make a carton.
 const OMNI_PER_CARTON={ceornfla45:10,kellocorn450:10};
 const toCartons=(sku,q)=>Math.round(n(q)/(OMNI_PER_CARTON[sku]||1)*100)/100;
@@ -864,6 +872,7 @@ document.addEventListener("click",async ev=>{
   const vw=ev.target.closest("[data-view]");if(vw){view=vw.dataset.view;render();window.scrollTo(0,0);return}
   const br=ev.target.closest("[data-brand]");if(br){brand=br.dataset.brand;store("ohBrand",brand);render();return}
   if(ev.target.closest("[data-ledger]")){exportLedger();return}
+  if(ev.target.closest("[data-adddano]")){const add=DANO.filter(p=>!cfg.products.includes(p));try{await saveConfig({...cfg,products:[...cfg.products,...add],names:{...(cfg.names||{}),...DANO_NAMES}});toast("Added the Dano products")}catch(e){toast(String(e&&e.message||e))}return}
   if(ev.target.id==="bd_clear"){byDate={...byDate,from:"",to:"",agent:""};render();return}
   const r=ev.target.closest("[data-role]");if(r&&isMgr()){role=r.dataset.role;store("ohRole",role);render();window.scrollTo(0,0);return}
   const f=ev.target.closest("[data-form]");if(f){openForm(f.dataset.form);return}
