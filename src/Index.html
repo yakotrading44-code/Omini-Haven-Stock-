@@ -262,8 +262,8 @@ function warehouseRow(p){
   const nr=notRaised(p,"9999-12-31");
   const unexplained=(c&&c.omni!==""&&c.omni!=null)?n(c.omni)-n(c.cartons)-notRaised(p,c.date):null;
   const systemShould=avail==null?null:avail+nr;
-  // System stock is Omni's stock today when Nana has loaded the InStock export since the count; otherwise the figure noted at the count.
-  const os=cfg.omniStock,fresh=!!(c&&os&&os.date>=c.date&&os.stock&&os.stock[p]!=null);
+  // System stock is Omni's stock today when Nana has loaded the InStock export since the count (or before any count); otherwise the figure noted at the count.
+  const os=cfg.omniStock,fresh=!!(os&&os.stock&&os.stock[p]!=null&&(!c||os.date>=c.date));
   const sys=fresh?n(os.stock[p]):unexplained==null?null:n(c.omni),sysDate=fresh?os.date:c?c.date:null;
   const gap=fresh?(systemShould==null?null:sys-systemShould):unexplained;
   return {p,count:c,recv,iss,ret,avail,nr,systemShould,unexplained,sys,sysDate,fresh,gap}
