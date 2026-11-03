@@ -529,7 +529,7 @@ function describe(e){
 function recentHtml(filter,title,limit=15){
   const list=entries.filter(filter).sort((x,y)=>(y.date+(y.createdAt||""))>(x.date+(x.createdAt||""))?1:-1).slice(0,limit);
   return `<section><h3>${title}</h3>${list.length?`<div class="list">${list.map(e=>`<div class="item"><div class="main"><span>${describe(e)}</span><span class="muted small">${fmtDate(e.date)}${e.by?" · entered by "+esc(e.by.split(" ")[0]):""}${e.note&&e.kind!=="receive"?" · "+esc(e.note):""}</span></div>
-    ${(canWrite&&!String(e.id).startsWith("tmp-")&&(isMgr()||(who&&e.by===who.name&&!(e.kind==="issue"&&e.status&&e.status!=="pending"))))?`<button class="link" data-act="del" data-id="${e.id}">Delete</button>`:""}</div>`).join("")}</div>`:`<div class="empty">Nothing recorded yet.</div>`}</section>`;
+    ${(canWrite&&!String(e.id).startsWith("tmp-")&&(isMgr()||(who&&e.by===who.name&&!(e.kind==="issue"&&e.status&&e.status!=="pending"))))?`${isMgr()?`<button class="link" data-act="edit" data-id="${e.id}">Edit</button> `:""}<button class="link" data-act="del" data-id="${e.id}">Delete</button>`:""}</div>`).join("")}</div>`:`<div class="empty">Nothing recorded yet.</div>`}</section>`;
 }
 
 /* ---------- forms ---------- */
@@ -909,6 +909,14 @@ document.addEventListener("click",async ev=>{
       $("#sheet").hidden=false;$("#cancel").onclick=closeForm;
       $("#rForm").onsubmit=async ev2=>{ev2.preventDefault();const rn=$("#r_n").value;if(rn===""){$("#r_err").textContent="Enter the correct number.";return}
         settle(n(rn),$("#r_note").value.trim());closeForm();toast("Settled. Everyone has been told.")}}
+    if(a.dataset.act==="edit"&&isMgr()){const e=findE(id);if(!e)return;const card=$("#sheetCard");
+      card.innerHTML=`<form id="eForm" class="lines"><h2>Edit entry</h2><p>${describe(e)}</p>
+        <label>Date<input type="date" id="e_date" value="${esc(e.date)}" max="${today()}"></label><label>Cartons<input type="number" id="e_n" inputmode="decimal" min="0" step="any" value="${n(e.cartons)}"></label><label>Note<input id="e_note" value="${esc(e.note||"")}"></label><div class="err" id="e_err"></div>
+        <div class="formbar"><button type="button" class="btn alt slim" id="cancel">Cancel</button><button class="btn slim">Save</button></div></form>`;
+      $("#sheet").hidden=false;$("#cancel").onclick=closeForm;
+      $("#eForm").onsubmit=ev2=>{ev2.preventDefault();const d=$("#e_date").value,c=$("#e_n").value;
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){$("#e_err").textContent="Pick a date.";return}if(c===""||!(n(c)>=0)){$("#e_err").textContent="Enter the number of cartons.";return}
+        const p={date:d,cartons:n(c),note:$("#e_note").value.trim()};later(()=>Object.assign(findE(id)||{},p),"updateEntry",id,p);closeForm();toast("Saved")};return}
     if(a.dataset.act==="del"){if(a.dataset.armed){later(()=>{allEntries=allEntries.filter(e=>e.id!==id)},"deleteEntry",id);toast(a.textContent.includes("remove")?"Removed":"Deleted")}else{const was=a.textContent;a.dataset.armed="1";a.textContent="Tap again to "+was.toLowerCase();setTimeout(()=>{if(a.isConnected){delete a.dataset.armed;a.textContent=was}},3000)}}
   }catch(e){toast(writeError(e))}
 });

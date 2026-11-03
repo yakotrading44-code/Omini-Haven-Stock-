@@ -524,6 +524,11 @@ function updateEntry(code, id, patch) {
         ['status', 'confirmedAt', 'disputeNote', 'disputeCartons'].forEach(function (k) { if (k in patch) p[k] = patch[k]; });
         if (p.status !== 'confirmed' && p.status !== 'disputed') deny_('you can\'t change that entry.');
         patch = p;
+      } else {
+        // Nana can correct an entry's date, cartons or note; the id and who entered it stay as they were.
+        delete patch.id; delete patch.by; delete patch.createdAt;
+        if ('date' in patch && !/^\d{4}-\d{2}-\d{2}$/.test(String(patch.date))) deny_('pick a date.');
+        if ('cartons' in patch) { patch.cartons = Number(patch.cartons); if (!(patch.cartons >= 0)) deny_('enter the number of cartons.'); }
       }
       writeFields_(sh, r, patch);
       if (patch.status === 'disputed') {
