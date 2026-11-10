@@ -155,7 +155,7 @@ const DEFAULT_CONFIG={
 };
 const KIND={issue:"Cartons given to agent",receive:"Received from supplier",ret:"Returned to warehouse",count:"Warehouse count",
   raise:"Order raised in Omni",sample:"Taken off for sampling",credit:"Given on credit",payment:"Customer paid"};
-let view="book",entryType="all",byDate={kind:"issue",from:"",to:"",agent:""},allEntries=[],db=true,accessCode=null,needCode=false,me=null,who=null,bookInfo=null,backups=[],locks={},phones={},appUrl="",cfg=DEFAULT_CONFIG,entries=[],role=null,canWrite=true,loaded=false,weekOf=mondayOf(today());
+let view="book",entryType="all",ef={agent:"",product:"",from:"",to:""},byDate={kind:"issue",from:"",to:"",agent:""},allEntries=[],db=true,accessCode=null,needCode=false,me=null,who=null,bookInfo=null,backups=[],locks={},phones={},appUrl="",cfg=DEFAULT_CONFIG,entries=[],role=null,canWrite=true,loaded=false,weekOf=mondayOf(today());
 const $=s=>document.querySelector(s);
 // Each brand has its own tab on Nana's overview and Frank's warehouse page, so the figures never mix.
 const KELLOGGS=["CF 45G","CF 450G","CP 25G","CF 300G"];
@@ -307,8 +307,18 @@ function renderEntries(){
   const mine=role==="Nana (manager)"?()=>true:role===(cfg.warehouse||"Frank")?e=>["issue","receive","ret","count"].includes(e.kind):e=>e.agent===role;
   const types=Object.keys(ENTRY_TYPES).filter(k=>k==="all"||entries.some(e=>mine(e)&&e.kind===k));
   if(!types.includes(entryType))entryType="all";
-  main.innerHTML=`<section><div class="weekbar"><h2>Entries</h2><select id="entryType" aria-label="Show">${types.map(k=>`<option value="${k}"${k===entryType?" selected":""}>${ENTRY_TYPES[k]}</option>`).join("")}</select></div></section>`+
-    recentHtml(e=>mine(e)&&(entryType==="all"||e.kind===entryType),"Newest first",400);
+  const pool=entries.filter(e=>mine(e)&&(entryType==="all"||e.kind===entryType));
+  const agents=[...new Set(pool.map(e=>e.agent).filter(Boolean))].sort(),prods=[...new Set(pool.map(e=>e.product).filter(Boolean))].sort();
+  if(ef.agent&&!agents.includes(ef.agent))ef.agent="";if(ef.product&&!prods.includes(ef.product))ef.product="";
+  const on=ef.agent||ef.product||ef.from||ef.to;
+  const keep=e=>(!ef.agent||e.agent===ef.agent)&&(!ef.product||e.product===ef.product)&&(!ef.from||e.date>=ef.from)&&(!ef.to||e.date<=ef.to);
+  const cnt=pool.filter(keep).length;
+  main.innerHTML=`<section><div class="weekbar"><h2>Entries</h2><select id="entryType" aria-label="Show">${types.map(k=>`<option value="${k}"${k===entryType?" selected":""}>${ENTRY_TYPES[k]}</option>`).join("")}</select></div>
+    <div class="grid2">${agents.length>1?`<label>Agent<select id="ef_agent"><option value="">Everyone</option>${agents.map(a=>`<option${a===ef.agent?" selected":""}>${esc(a)}</option>`).join("")}</select></label>`:""}
+    <label>Product<select id="ef_product"><option value="">All products</option>${prods.map(x=>`<option${x===ef.product?" selected":""}>${esc(x)}</option>`).join("")}</select></label>
+    <label>From<input type="date" id="ef_from" value="${ef.from}"></label><label>To<input type="date" id="ef_to" value="${ef.to}"></label></div>
+    ${on?`<p class="muted small">${cnt} ${cnt===1?"entry":"entries"} · <button class="link" id="ef_clear" type="button">Clear filters</button></p>`:""}</section>`+
+    recentHtml(e=>mine(e)&&(entryType==="all"||e.kind===entryType)&&keep(e),"Newest first",on?5000:400);
 }
 
 // One row per day and agent, one column per product, so cartons can be traced and filtered by date.
@@ -883,6 +893,7 @@ document.addEventListener("click",async ev=>{
   if(ev.target.closest("[data-ledger]")){exportLedger();return}
   const sd=ev.target.closest("[data-sampledone]");if(sd){try{for(const id of sd.dataset.sampledone.split(","))apply(await call("updateEntry",id,{status:"done"}));toast("Ticked off")}catch(e){toast(String(e&&e.message||e))}return}
   if(ev.target.closest("[data-adddano]")){const add=DANO.filter(p=>!cfg.products.includes(p));try{await saveConfig({...cfg,products:[...cfg.products,...add],names:{...(cfg.names||{}),...DANO_NAMES}});toast("Added the Dano products")}catch(e){toast(String(e&&e.message||e))}return}
+  if(ev.target.id==="ef_clear"){ef={agent:"",product:"",from:"",to:""};render();return}
   if(ev.target.id==="bd_clear"){byDate={...byDate,from:"",to:"",agent:""};render();return}
   const r=ev.target.closest("[data-role]");if(r&&isMgr()){role=r.dataset.role;store("ohRole",role);render();window.scrollTo(0,0);return}
   const f=ev.target.closest("[data-form]");if(f){openForm(f.dataset.form);return}
@@ -922,6 +933,7 @@ document.addEventListener("click",async ev=>{
 });
 document.getElementById("changeCode").onclick=()=>{needCode=true;accessCode=null;who=null;role=null;loaded=false;allEntries=[];store("ohCode","");store("ohCache","");render()};
 document.addEventListener("change",ev=>{if(ev.target.id==="entryType"){entryType=ev.target.value;render();return}
+  const efk={ef_agent:"agent",ef_product:"product",ef_from:"from",ef_to:"to"}[ev.target.id];if(efk){ef[efk]=ev.target.value;render();return}
   const bd={bd_kind:"kind",bd_agent:"agent",bd_from:"from",bd_to:"to"}[ev.target.id];if(bd){byDate[bd]=ev.target.value;render();return}if(ev.target.id==="weekPick"&&ev.target.value){weekOf=mondayOf(ev.target.value);render()}});
 $("#sheet").addEventListener("click",ev=>{if(ev.target.id==="sheet")closeForm()});
 document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&!$("#sheet").hidden)closeForm()});
