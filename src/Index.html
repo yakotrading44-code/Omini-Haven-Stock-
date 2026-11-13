@@ -312,12 +312,12 @@ function renderEntries(){
   if(ef.agent&&!agents.includes(ef.agent))ef.agent="";if(ef.product&&!prods.includes(ef.product))ef.product="";
   const on=ef.agent||ef.product||ef.from||ef.to;
   const keep=e=>(!ef.agent||e.agent===ef.agent)&&(!ef.product||e.product===ef.product)&&(!ef.from||e.date>=ef.from)&&(!ef.to||e.date<=ef.to);
-  const cnt=pool.filter(keep).length;
+  const cnt=pool.filter(keep).length;entriesShown=pool.filter(keep);
   main.innerHTML=`<section><div class="weekbar"><h2>Entries</h2><select id="entryType" aria-label="Show">${types.map(k=>`<option value="${k}"${k===entryType?" selected":""}>${ENTRY_TYPES[k]}</option>`).join("")}</select></div>
     <div class="grid2">${agents.length>1?`<label>Agent<select id="ef_agent"><option value="">Everyone</option>${agents.map(a=>`<option${a===ef.agent?" selected":""}>${esc(a)}</option>`).join("")}</select></label>`:""}
     <label>Product<select id="ef_product"><option value="">All products</option>${prods.map(x=>`<option${x===ef.product?" selected":""}>${esc(x)}</option>`).join("")}</select></label>
     <label>From<input type="date" id="ef_from" value="${ef.from}"></label><label>To<input type="date" id="ef_to" value="${ef.to}"></label></div>
-    ${on?`<p class="muted small">${cnt} ${cnt===1?"entry":"entries"} · <button class="link" id="ef_clear" type="button">Clear filters</button></p>`:""}</section>`+
+    <p class="muted small">${on?`${cnt} ${cnt===1?"entry":"entries"} · <button class="link" id="ef_clear" type="button">Clear filters</button> · `:""}${cnt?`<button class="link" id="ef_export" type="button">Export to Excel</button>`:""}</p></section>`+
     recentHtml(e=>mine(e)&&(entryType==="all"||e.kind===entryType)&&keep(e),"Newest first",on?5000:400);
 }
 
@@ -741,6 +741,16 @@ async function exportLedger(){
     const ws=XLSX.utils.aoa_to_sheet(aoa,{cellDates:true,dateNF:"dd/mm/yyyy"});ws["!cols"]=[{wch:12},{wch:14},{wch:14},{wch:10},{wch:14},{wch:8}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Export");XLSX.writeFile(wb,"Kelloggs Power BI "+today()+".xlsx");toast("Downloaded")}
   catch(e){toast(typeof e==="string"?e:"Couldn't make the file: "+(e&&e.message||e))}}
+// The entries the Entries page is showing (its type and filters), oldest first, in the same columns the import takes.
+let entriesShown=[];
+const EXPORT_TYPE={issue:"Given",receive:"Received",count:"Count",ret:"Returned",raise:"Raised",sample:"Sampling",credit:"Credit",payment:"Payment"};
+async function exportEntries(){const list=[...entriesShown].sort((x,y)=>(x.date+(x.createdAt||""))<(y.date+(y.createdAt||""))?-1:1);if(!list.length)return;
+  try{await loadXlsx();
+    const aoa=[["Date","Type","Agent","Product","Cartons","Omni shows","Note","Customer","Order no","Entered by"]];
+    list.forEach(e=>aoa.push([e.date,EXPORT_TYPE[e.kind]||e.kind,e.agent||"",e.product||"",n(e.cartons),e.omni===""||e.omni==null?"":n(e.omni),e.note||"",e.customer||"",e.orderNo||"",e.by||""]));
+    const ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=[{wch:11},{wch:10},{wch:16},{wch:10},{wch:8},{wch:10},{wch:34},{wch:16},{wch:12},{wch:16}];
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Entries");XLSX.writeFile(wb,"Entries "+today()+".xlsx");toast("Downloaded")}
+  catch(e){toast(typeof e==="string"?e:"Couldn't make the file: "+(e&&e.message||e))}}
 // Warehouse vs Omni system as an Excel file, laid out like the table on Nana's overview.
 async function exportWvo(){if(!wvo)return;
   try{await loadXlsx();const {rows,omniAt,counted,tot}=wvo;
@@ -893,6 +903,7 @@ document.addEventListener("click",async ev=>{
   if(ev.target.closest("[data-ledger]")){exportLedger();return}
   const sd=ev.target.closest("[data-sampledone]");if(sd){try{for(const id of sd.dataset.sampledone.split(","))apply(await call("updateEntry",id,{status:"done"}));toast("Ticked off")}catch(e){toast(String(e&&e.message||e))}return}
   if(ev.target.closest("[data-adddano]")){const add=DANO.filter(p=>!cfg.products.includes(p));try{await saveConfig({...cfg,products:[...cfg.products,...add],names:{...(cfg.names||{}),...DANO_NAMES}});toast("Added the Dano products")}catch(e){toast(String(e&&e.message||e))}return}
+  if(ev.target.id==="ef_export"){exportEntries();return}
   if(ev.target.id==="ef_clear"){ef={agent:"",product:"",from:"",to:""};render();return}
   if(ev.target.id==="bd_clear"){byDate={...byDate,from:"",to:"",agent:""};render();return}
   const r=ev.target.closest("[data-role]");if(r&&isMgr()){role=r.dataset.role;store("ohRole",role);render();window.scrollTo(0,0);return}
